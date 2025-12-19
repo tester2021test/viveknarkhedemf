@@ -2,15 +2,16 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Upload, AlertTriangle, TrendingUp, TrendingDown, 
   PieChart, Activity, Search, Filter, X, FileSpreadsheet, 
-  RefreshCw, ArrowUp, Sun, Moon, Printer,
+  RefreshCw, ArrowUp, Sun, Moon,
   Download, Briefcase, Shield, Gauge, BarChart3,
   Wand2, Trash2, ArrowRightLeft, Target, Layers, Wallet,
-  Trophy, AlertCircle
+  Trophy, AlertCircle, Info, ExternalLink, Calendar,
+  LineChart as LineChartIcon
 } from 'lucide-react';
 import { 
   PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, 
   Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, 
-  CartesianGrid, ComposedChart, Line
+  CartesianGrid, ComposedChart, Line, LineChart, Area, AreaChart
 } from 'recharts';
 
 /**
@@ -21,7 +22,8 @@ import {
  * - Consolidation Engine
  * - Smart Benchmarking
  * - AMC Analysis & Dark Mode
- * - PDF Export Support
+ * - Live Fund Details via MFAPI.in
+ * - Wealth Projection & Distribution Analysis
  */
 
 // --- UI Components ---
@@ -106,6 +108,236 @@ const downloadCSV = (data, filename) => {
   } catch (e) {
       console.error("Download failed", e);
   }
+};
+
+// --- New Component: Fund Details Modal ---
+
+const FundDetailsModal = ({ schemeName, onClose }) => {
+  const [loading, setLoading] = useState(true);
+  const [details, setDetails] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [perfStats, setPerfStats] = useState({});
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // 1. Search for Scheme Code
+        const searchRes = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(schemeName)}`);
+        const searchData = await searchRes.json();
+
+        if (searchData && searchData.length > 0) {
+          // Take the first result (usually the most relevant)
+          const code = searchData[0].schemeCode;
+          
+          // 2. Fetch Scheme Details
+          const detailRes = await fetch(`https://api.mfapi.in/mf/${code}`);
+          const detailData = await detailRes.json();
+          
+          if(detailData.status === "SUCCESS") {
+              setDetails(detailData.meta);
+              
+              const rawData = detailData.data; // [{date: "DD-MM-YYYY", nav: "123"}, ...]
+              
+              // Helper to parse "DD-MM-YYYY"
+              const parseDate = (str) => {
+                  const [d, m, y] = str.split('-');
+                  return new Date(`${y}-${m}-${d}`);
+              };
+
+              const currentNav = parseFloat(rawData[0].nav);
+              
+              // Find historical NAVs
+              const findNavAgo = (days) => {
+                  const today = parseDate(rawData[0].date);
+                  const targetDate = new Date(today);
+                  targetDate.setDate(today.getDate() - days);
+                  // Find entry closest to target date (data is desc)
+                  const entry = rawData.find(d => parseDate(d.date) <= targetDate);
+                  return entry ? parseFloat(entry.nav) : null;
+              };
+
+              const nav1Y = findNavAgo(365);
+              const nav3Y = findNavAgo(365 * 3);
+              const nav5Y = findNavAgo(365 * 5);
+
+              // 52 Week High/Low (approx last 260 trading days)
+              const oneYearNavs = rawData.slice(0, 260).map(d => parseFloat(d.nav));
+              const high52 = Math.max(...oneYearNavs);
+              const low52 = Math.min(...oneYearNavs);
+
+              // Calculate Returns/CAGR
+              const calcCAGR = (start, end, years) => {
+                  if(!start) return null;
+                  return ((Math.pow(end/start, 1/years) - 1) * 100).toFixed(2);
+              }
+
+              setPerfStats({
+                  ret1Y: nav1Y ? ((currentNav - nav1Y)/nav1Y * 100).toFixed(2) : null,
+                  cagr3Y: calcCAGR(nav3Y, currentNav, 3),
+                  cagr5Y: calcCAGR(nav5Y, currentNav, 5),
+                  high52,
+                  low52
+              });
+
+              // Chart Data (1 Year)
+              const chartData = rawData.slice(0, 260).map(d => ({
+                  date: d.date,
+                  nav: parseFloat(d.nav)
+              })).reverse(); 
+              setHistory(chartData);
+
+          } else {
+              setError("Details not available from provider");
+          }
+        } else {
+          setError("Fund not found in MFAPI database");
+        }
+      } catch (err) {
+        setError("Unable to connect to market data service");
+      }
+      setLoading(false);
+    };
+
+    if (schemeName) fetchData();
+  }, [schemeName]);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md z-10">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">{schemeName}</h2>
+            <div className="flex items-center gap-2 mt-1">
+                <Badge type="blue">{details?.scheme_category || 'Mutual Fund'}</Badge>
+                <span className="text-xs text-slate-400 border-l border-slate-300 pl-2 ml-1">Data by mfapi.in</span>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <X className="w-6 h-6 text-slate-500" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 flex-1">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4">
+              <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
+              <p className="text-slate-500 text-sm">Crunching the numbers...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4 text-center">
+              <div className="bg-rose-100 text-rose-500 p-4 rounded-full"><AlertTriangle className="w-8 h-8" /></div>
+              <p className="text-slate-800 dark:text-slate-200 font-medium">{error}</p>
+              <p className="text-slate-500 text-xs max-w-xs">We couldn't match "{schemeName}" with the API database. Try checking the name in your file.</p>
+            </div>
+          ) : (
+            <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+              
+              {/* Key Stats Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                      <div className="text-xs text-slate-500 uppercase font-semibold">Current NAV</div>
+                      <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">₹{history[history.length-1]?.nav}</div>
+                      <div className="text-[10px] text-slate-400 mt-1">As of {history[history.length-1]?.date}</div>
+                  </div>
+                  
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                      <div className="text-xs text-slate-500 uppercase font-semibold">1 Year Return</div>
+                      <div className={`text-2xl font-bold mt-1 ${perfStats.ret1Y >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {perfStats.ret1Y > 0 ? '+' : ''}{perfStats.ret1Y}%
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1">Absolute</div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                      <div className="text-xs text-slate-500 uppercase font-semibold">3 Year CAGR</div>
+                      <div className="text-2xl font-bold text-slate-800 dark:text-white mt-1">
+                          {perfStats.cagr3Y ? `${perfStats.cagr3Y}%` : 'N/A'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1">Annualized</div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                      <div className="text-xs text-slate-500 uppercase font-semibold">5 Year CAGR</div>
+                      <div className="text-2xl font-bold text-slate-800 dark:text-white mt-1">
+                          {perfStats.cagr5Y ? `${perfStats.cagr5Y}%` : 'N/A'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1">Annualized</div>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Chart */}
+                  <div className="lg:col-span-2 h-[320px] w-full bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-2">NAV Movement (1 Year)</h3>
+                        <Badge type="neutral" className="text-[10px]">1Y Trend</Badge>
+                    </div>
+                    <ResponsiveContainer width="100%" height="85%">
+                    <AreaChart data={history}>
+                        <defs>
+                        <linearGradient id="colorNav" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                        </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="date" hide />
+                        <YAxis domain={['auto', 'auto']} width={40} tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                        <RechartsTooltip 
+                        contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                        labelStyle={{color: '#64748b', fontSize: '12px'}}
+                        />
+                        <Area type="monotone" dataKey="nav" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorNav)" />
+                    </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Fund Details Info */}
+                  <div className="space-y-4">
+                      <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-5 border border-slate-100 dark:border-slate-700">
+                          <h4 className="font-bold text-slate-800 dark:text-white mb-3 text-sm">Fund Information</h4>
+                          <div className="space-y-3 text-sm">
+                              <div className="flex justify-between">
+                                  <span className="text-slate-500">Fund House</span>
+                                  <span className="font-medium text-slate-800 dark:text-slate-200 text-right w-1/2">{details?.fund_house}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                  <span className="text-slate-500">Scheme Code</span>
+                                  <span className="font-medium text-slate-800 dark:text-slate-200">{details?.scheme_code}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                  <span className="text-slate-500">Scheme Type</span>
+                                  <span className="font-medium text-slate-800 dark:text-slate-200">{details?.scheme_type}</span>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-5 border border-slate-100 dark:border-slate-700">
+                          <h4 className="font-bold text-slate-800 dark:text-white mb-3 text-sm">52-Week Range</h4>
+                          <div className="relative h-2 bg-slate-200 dark:bg-slate-700 rounded-full mt-6 mb-2">
+                              <div className="absolute top-0 bottom-0 bg-indigo-500 rounded-full" style={{
+                                  left: '20%', right: '20%' // Visual representation only
+                              }}></div>
+                              {/* Range Markers */}
+                              <div className="absolute -top-5 left-0 text-[10px] text-slate-500 font-medium">L: ₹{perfStats.low52}</div>
+                              <div className="absolute -top-5 right-0 text-[10px] text-slate-500 font-medium">H: ₹{perfStats.high52}</div>
+                          </div>
+                          <div className="text-center text-[10px] text-slate-400 mt-2">Current: ₹{history[history.length-1]?.nav}</div>
+                      </div>
+                  </div>
+              </div>
+
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // --- Constants ---
@@ -222,6 +454,7 @@ export default function PortfolioAnalyzer() {
   const [excelReady, setExcelReady] = useState(false);
   const [simulateCleanup, setSimulateCleanup] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [selectedFundName, setSelectedFundName] = useState(null);
 
   const scriptLoaded = useRef(false);
 
@@ -260,10 +493,6 @@ export default function PortfolioAnalyzer() {
           setData(SAMPLE_DATA);
           setLoading(false);
       }, 800);
-  };
-
-  const handlePrint = () => {
-      window.print();
   };
 
   const handleFileUpload = (event) => {
@@ -347,6 +576,10 @@ export default function PortfolioAnalyzer() {
     const categoryXIRR = {}; 
 
     const smartGroups = {};
+    
+    // Weighted XIRR calculation variables
+    let totalWeightedXIRR = 0;
+    let totalXIRRWeight = 0;
 
     processedData.forEach(item => {
       const cat = item['Category'] || 'Other';
@@ -364,6 +597,10 @@ export default function PortfolioAnalyzer() {
       if (xirr && !isNaN(xirr) && xirr !== 0) {
           categoryXIRR[subCat].sumProduct += (xirr * currVal);
           categoryXIRR[subCat].sumWeight += currVal;
+          
+          // Global portfolio weighted XIRR
+          totalWeightedXIRR += (xirr * currVal);
+          totalXIRRWeight += currVal;
       }
 
       if (item['Returns'] < 0) lossMakers.push(item);
@@ -390,6 +627,40 @@ export default function PortfolioAnalyzer() {
             : 0;
       }
     });
+    
+    // Overall Portfolio XIRR (Weighted)
+    const portfolioXIRR = totalXIRRWeight > 0 ? (totalWeightedXIRR / totalXIRRWeight) : 0;
+
+    // Wealth Projection Data (Next 10 Years)
+    const projectionYears = [0, 1, 3, 5, 10];
+    const wealthProjection = projectionYears.map(year => {
+        return {
+            year: `Year ${year}`,
+            portfolio: Math.round(totalCurr * Math.pow(1 + portfolioXIRR / 100, year)),
+            benchmark: Math.round(totalCurr * Math.pow(1 + 12 / 100, year)) // Assuming 12% benchmark
+        };
+    });
+
+    // Return Distribution Histogram
+    const distributionBuckets = {
+        '> 20%': 0,
+        '12% - 20%': 0,
+        '0% - 12%': 0,
+        'Negative': 0
+    };
+    
+    processedData.forEach(item => {
+        // Prefer XIRR if available, else use absolute return
+        const ret = item['XIRR'] && item['XIRR'] !== 0 ? item['XIRR'] : item._absReturn;
+        
+        if (ret > 20) distributionBuckets['> 20%']++;
+        else if (ret >= 12) distributionBuckets['12% - 20%']++;
+        else if (ret >= 0) distributionBuckets['0% - 12%']++;
+        else distributionBuckets['Negative']++;
+    });
+    
+    const distributionData = Object.entries(distributionBuckets).map(([name, value]) => ({ name, value }));
+
 
     const comparisonData = [];
     Object.keys(categoryXIRR).forEach(subCat => {
@@ -478,7 +749,10 @@ export default function PortfolioAnalyzer() {
       consolidationPlan,
       categories,
       topGainers,
-      bottomLaggards
+      bottomLaggards,
+      wealthProjection,
+      distributionData,
+      portfolioXIRR
     };
   }, [data, simulateCleanup]);
 
@@ -553,30 +827,45 @@ export default function PortfolioAnalyzer() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans pb-24 transition-colors duration-300">
-      {/* Top Navigation */}
+      {/* Top Navigation - Redesigned for Mobile Clarity */}
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
-              <Wallet className="w-5 h-5 text-white" />
+        <div className="max-w-7xl mx-auto px-4 py-3 md:py-0 md:h-16 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0">
+          
+          {/* Top Row: Logo & Mobile Actions */}
+          <div className="w-full md:w-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
+                <Wallet className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold text-xl text-slate-800 dark:text-white">Vivek Narkhede's <span className="text-indigo-600">Portfolio</span></span>
             </div>
-            <span className="font-bold text-xl hidden sm:block tracking-tight text-slate-800 dark:text-white">Vivek Narkhede's <span className="text-indigo-600">Portfolio Analyzer</span></span>
-          </div>
-          <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto no-scrollbar">
-            {['dashboard', 'optimize', 'performance', 'holdings'].map(tab => (
-                 <button 
-                  key={tab}
-                  onClick={() => setActiveTab(tab)} 
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap capitalize ${activeTab === tab ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                >
-                  {tab}
+            
+            {/* Mobile Actions: Dark Mode & Close */}
+            <div className="flex md:hidden items-center gap-2">
+                <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors bg-slate-50 dark:bg-slate-800/50">
+                    {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
                 </button>
-            ))}
+                <button onClick={() => setData(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors bg-slate-50 dark:bg-slate-800/50"><X className="w-5 h-5" /></button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={handlePrint} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors" title="Save as PDF">
-                <Printer className="w-5 h-5"/>
-            </button>
+
+          {/* Bottom Row (Mobile) / Center (Desktop): Navigation Tabs */}
+          <div className="w-full md:w-auto overflow-x-auto no-scrollbar order-last md:order-none">
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-auto">
+              {['dashboard', 'optimize', 'performance', 'holdings'].map(tab => (
+                  <button 
+                    key={tab}
+                    onClick={() => setActiveTab(tab)} 
+                    className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap capitalize ${activeTab === tab ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                  >
+                    {tab}
+                  </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Desktop Actions (Hidden on Mobile) */}
+          <div className="hidden md:flex items-center gap-2">
             <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors">
                 {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
             </button>
@@ -587,6 +876,11 @@ export default function PortfolioAnalyzer() {
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         
+        {/* Fund Details Modal */}
+        {selectedFundName && (
+          <FundDetailsModal schemeName={selectedFundName} onClose={() => setSelectedFundName(null)} />
+        )}
+
         {/* Hero Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             {/* Main Value Card */}
@@ -677,14 +971,18 @@ export default function PortfolioAnalyzer() {
                      </div>
                      <div className="space-y-4">
                          {analysis.topGainers.map((fund, idx) => (
-                             <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                             <div 
+                                key={idx} 
+                                className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                onClick={() => setSelectedFundName(fund['Scheme Name'])}
+                             >
                                  <div>
                                      <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
                                      <div className="text-xs text-slate-500 mt-0.5">{formatCurrency(fund['Current Value'])}</div>
                                  </div>
                                  <div className="text-right">
                                      <div className="text-sm font-bold text-emerald-600">+{fund._absReturn.toFixed(2)}%</div>
-                                     <div className="text-[10px] text-slate-400 uppercase font-medium">Return</div>
+                                     <div className="text-[10px] text-slate-400 uppercase font-medium flex items-center justify-end gap-1">Return <Info className="w-3 h-3"/></div>
                                  </div>
                              </div>
                          ))}
@@ -699,7 +997,11 @@ export default function PortfolioAnalyzer() {
                      </div>
                      <div className="space-y-4">
                          {analysis.bottomLaggards.map((fund, idx) => (
-                             <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                             <div 
+                                key={idx} 
+                                className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                onClick={() => setSelectedFundName(fund['Scheme Name'])}
+                             >
                                  <div>
                                      <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
                                      <div className="text-xs text-slate-500 mt-0.5">{formatCurrency(fund['Current Value'])}</div>
@@ -708,7 +1010,7 @@ export default function PortfolioAnalyzer() {
                                      <div className={`text-sm font-bold ${fund._absReturn >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                          {fund._absReturn > 0 ? '+' : ''}{fund._absReturn.toFixed(2)}%
                                      </div>
-                                     <div className="text-[10px] text-slate-400 uppercase font-medium">Return</div>
+                                     <div className="text-[10px] text-slate-400 uppercase font-medium flex items-center justify-end gap-1">Return <Info className="w-3 h-3"/></div>
                                  </div>
                              </div>
                          ))}
@@ -865,7 +1167,7 @@ export default function PortfolioAnalyzer() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Chart */}
                     <Card className="lg:col-span-8 min-h-[400px]">
-                        <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-slate-800"><BarChart3 className="w-5 h-5 text-indigo-500" /> Performance vs Benchmark (XIRR %)</h3>
+                        <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-slate-800 dark:text-white"><BarChart3 className="w-5 h-5 text-indigo-500" /> Performance vs Benchmark (XIRR %)</h3>
                         <div className="h-[350px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart data={analysis.comparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -904,6 +1206,80 @@ export default function PortfolioAnalyzer() {
                             </div>
                         ))}
                     </div>
+                </div>
+
+                {/* Wealth Projection Section (NEW) */}
+                <Card>
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><LineChartIcon className="w-5 h-5 text-indigo-500" /> Wealth Projection (10 Years)</h3>
+                            <p className="text-sm text-slate-500 mt-1">Based on current weighted portfolio XIRR of <strong>{analysis.portfolioXIRR.toFixed(2)}%</strong></p>
+                        </div>
+                    </div>
+                    <div className="h-[350px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={analysis.wealthProjection} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorPortfolio" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                    </linearGradient>
+                                    <linearGradient id="colorBenchmark" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
+                                <YAxis tickFormatter={(val) => `₹${(val/100000).toFixed(1)}L`} axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <RechartsTooltip 
+                                    formatter={(value) => formatCurrency(value)}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Legend verticalAlign="top" height={36}/>
+                                <Area type="monotone" dataKey="portfolio" name="Projected Value" stroke="#6366f1" fillOpacity={1} fill="url(#colorPortfolio)" strokeWidth={3} />
+                                <Area type="monotone" dataKey="benchmark" name="Benchmark (12%)" stroke="#94a3b8" fillOpacity={1} fill="url(#colorBenchmark)" strokeDasharray="5 5" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                {/* Return Distribution (NEW) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <Card>
+                        <h3 className="font-bold text-lg mb-6 text-slate-800 dark:text-white">Fund Performance Distribution</h3>
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={analysis.distributionData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12, fill: '#64748b'}} />
+                                    <RechartsTooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                    <Bar dataKey="value" name="Funds" fill="#10b981" radius={[0, 4, 4, 0]} barSize={30}>
+                                        {
+                                            analysis.distributionData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={index === 3 ? '#ef4444' : index === 0 ? '#10b981' : '#6366f1'} />
+                                            ))
+                                        }
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                    
+                    <Card className="flex flex-col justify-center">
+                        <div className="text-center space-y-4">
+                            <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-full flex items-center justify-center mx-auto">
+                                <Target className="w-8 h-8"/>
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">Portfolio Strategy Insight</h3>
+                            <p className="text-slate-500 max-w-md mx-auto text-sm leading-relaxed">
+                                Your portfolio has a weighted XIRR of <strong className="text-indigo-600 dark:text-indigo-400">{analysis.portfolioXIRR.toFixed(2)}%</strong>. 
+                                <br/><br/>
+                                You have <strong>{analysis.distributionData.find(d => d.name === '> 20%')?.value || 0} multi-baggers</strong> (returning &gt;20%) driving growth, while <strong>{analysis.distributionData.find(d => d.name === 'Negative')?.value || 0} funds</strong> are currently dragging performance.
+                            </p>
+                        </div>
+                    </Card>
                 </div>
             </div>
         )}
@@ -956,9 +1332,15 @@ export default function PortfolioAnalyzer() {
                                     .filter(i => categoryFilter === 'All' || i['Category'] === categoryFilter)
                                     .filter(i => i['Scheme Name'].toLowerCase().includes(searchTerm.toLowerCase()))
                                     .map((item, idx) => (
-                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <tr 
+                                        key={idx} 
+                                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                        onClick={() => setSelectedFundName(item['Scheme Name'])}
+                                    >
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-slate-900 dark:text-white truncate max-w-sm" title={item['Scheme Name']}>{item['Scheme Name']}</div>
+                                            <div className="font-medium text-slate-900 dark:text-white truncate max-w-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" title={item['Scheme Name']}>
+                                                {item['Scheme Name']}
+                                            </div>
                                             <div className="flex gap-2 mt-1">
                                                 <Badge type="neutral" className="text-[10px] py-0 px-2">{item['Category']}</Badge>
                                             </div>
@@ -970,8 +1352,8 @@ export default function PortfolioAnalyzer() {
                                             <div className={`font-bold ${item['Returns'] >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                 {item['Returns'] >= 0 ? '+' : ''}{formatNumber(item['Returns'], 0)}
                                             </div>
-                                            <div className={`text-xs mt-0.5 font-medium ${item._absReturn >= 0 ? 'text-emerald-600/70' : 'text-rose-600/70'}`}>
-                                                {item._absReturn.toFixed(2)}%
+                                            <div className={`text-xs mt-0.5 font-medium ${item._absReturn >= 0 ? 'text-emerald-600/70' : 'text-rose-600/70'} flex justify-end items-center gap-1`}>
+                                                {item._absReturn.toFixed(2)}% <Info className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                                             </div>
                                         </td>
                                     </tr>
