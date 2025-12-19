@@ -1,16 +1,16 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  Upload, AlertTriangle, TrendingUp, TrendingDown, DollarSign, 
+  Upload, AlertTriangle, TrendingUp, TrendingDown, 
   PieChart, Activity, Search, Filter, X, FileSpreadsheet, 
-  RefreshCw, ArrowDown, ArrowUp, ChevronDown, ChevronUp, 
-  AlertCircle, Download, Briefcase, Shield, Gauge, BarChart3,
+  RefreshCw, ArrowUp, Sun, Moon, Printer,
+  Download, Briefcase, Shield, Gauge, BarChart3,
   Wand2, Trash2, ArrowRightLeft, Target, Layers, Wallet,
-  CheckCircle2, XCircle
+  Trophy, AlertCircle
 } from 'lucide-react';
 import { 
   PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, 
   Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, 
-  CartesianGrid, ComposedChart, Line, Treemap
+  CartesianGrid, ComposedChart, Line
 } from 'recharts';
 
 /**
@@ -20,6 +20,8 @@ import {
  * - "Portfolio Detox" Simulator
  * - Consolidation Engine
  * - Smart Benchmarking
+ * - AMC Analysis & Dark Mode
+ * - PDF Export Support
  */
 
 // --- UI Components ---
@@ -106,31 +108,6 @@ const downloadCSV = (data, filename) => {
   }
 };
 
-const CustomizedTreemapContent = (props) => {
-  const { root, depth, x, y, width, height, index, name, value } = props;
-  return (
-    <g>
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        style={{
-          fill: depth < 2 ? '#6366f1' : '#ffffff00',
-          stroke: '#fff',
-          strokeWidth: 2 / (depth + 1e-10),
-          strokeOpacity: 1 / (depth + 1e-10),
-        }}
-      />
-      {depth === 1 ? (
-        <text x={x + width / 2} y={y + height / 2 + 7} textAnchor="middle" fill="#fff" fontSize={12} fillOpacity={0.9}>
-          {width > 50 ? name : ''}
-        </text>
-      ) : null}
-    </g>
-  );
-};
-
 // --- Constants ---
 
 const BENCHMARKS = {
@@ -144,6 +121,18 @@ const BENCHMARKS = {
   'Sectoral': { name: 'Nifty 500', return: 15.0 },
   'Other': { name: 'Inflation', return: 6.0 }
 };
+
+const SAMPLE_DATA = [
+    { 'Scheme Name': 'HDFC Top 100 Fund', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'HDFC Mutual Fund', 'Units': 500, 'Invested Value': 50000, 'Current Value': 75000, 'Returns': 25000, 'XIRR': 15.5 },
+    { 'Scheme Name': 'SBI Small Cap Fund', 'Category': 'Equity', 'Sub-category': 'Small Cap', 'AMC': 'SBI Mutual Fund', 'Units': 200, 'Invested Value': 40000, 'Current Value': 65000, 'Returns': 25000, 'XIRR': 22.1 },
+    { 'Scheme Name': 'Axis Midcap Fund', 'Category': 'Equity', 'Sub-category': 'Mid Cap', 'AMC': 'Axis Mutual Fund', 'Units': 300, 'Invested Value': 45000, 'Current Value': 55000, 'Returns': 10000, 'XIRR': 14.2 },
+    { 'Scheme Name': 'Parag Parikh Flexi Cap', 'Category': 'Equity', 'Sub-category': 'Flexi Cap', 'AMC': 'PPFAS Mutual Fund', 'Units': 400, 'Invested Value': 80000, 'Current Value': 110000, 'Returns': 30000, 'XIRR': 18.5 },
+    { 'Scheme Name': 'HDFC Balanced Advantage', 'Category': 'Hybrid', 'Sub-category': 'Dynamic Asset Allocation', 'AMC': 'HDFC Mutual Fund', 'Units': 100, 'Invested Value': 10000, 'Current Value': 12000, 'Returns': 2000, 'XIRR': 9.5 },
+    { 'Scheme Name': 'Nippon India Small Cap', 'Category': 'Equity', 'Sub-category': 'Small Cap', 'AMC': 'Nippon India Mutual Fund', 'Units': 50, 'Invested Value': 4000, 'Current Value': 4500, 'Returns': 500, 'XIRR': 12.0 }, // Clutter example
+    { 'Scheme Name': 'UTI Nifty 50 Index', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'UTI Mutual Fund', 'Units': 100, 'Invested Value': 15000, 'Current Value': 14000, 'Returns': -1000, 'XIRR': -5.0 }, // Loss example
+    { 'Scheme Name': 'ICICI Prudential Bluechip', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'ICICI Prudential', 'Units': 150, 'Invested Value': 30000, 'Current Value': 38000, 'Returns': 8000, 'XIRR': 13.0 },
+    { 'Scheme Name': 'SBI Bluechip Fund', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'SBI Mutual Fund', 'Units': 120, 'Invested Value': 25000, 'Current Value': 29000, 'Returns': 4000, 'XIRR': 11.0 } // Consolidation candidate with HDFC/ICICI/UTI
+];
 
 // --- Parsing Logic ---
 
@@ -229,11 +218,21 @@ export default function PortfolioAnalyzer() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const [excelReady, setExcelReady] = useState(false);
-  const [expandedCats, setExpandedCats] = useState({});
   const [simulateCleanup, setSimulateCleanup] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
 
   const scriptLoaded = useRef(false);
+
+  // Dark Mode Toggle Logic
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     if (window.XLSX) {
@@ -254,6 +253,18 @@ export default function PortfolioAnalyzer() {
     document.body.appendChild(script);
     scriptLoaded.current = true;
   }, []);
+
+  const loadSampleData = () => {
+      setLoading(true);
+      setTimeout(() => {
+          setData(SAMPLE_DATA);
+          setLoading(false);
+      }, 800);
+  };
+
+  const handlePrint = () => {
+      window.print();
+  };
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -439,17 +450,8 @@ export default function PortfolioAnalyzer() {
         });
     });
 
-    const treemapData = categoryTree.map(cat => ({
-        name: cat.name,
-        children: cat.subCategories.map(sub => ({
-            name: sub.name,
-            size: sub.totalVal,
-            children: sub.funds.map(f => ({ name: f['Scheme Name'], size: f['Current Value'] }))
-        }))
-    }));
-
     const categoryData = Object.entries(byCategory).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-    const amcData = Object.entries(byAMC).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+    const amcData = Object.entries(byAMC).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 7); // Top 7 AMCs
 
     let score = 100;
     score -= Math.min(20, clutterItems.length * 2);
@@ -459,6 +461,13 @@ export default function PortfolioAnalyzer() {
     score = Math.max(0, Math.round(score));
     
     let healthLabel = score < 40 ? "Critical" : score < 60 ? "Poor" : score < 80 ? "Good" : "Excellent";
+    
+    // Get unique categories for filter
+    const categories = ['All', ...new Set(processedData.map(d => d['Category']).filter(Boolean))];
+
+    // Highs and Lows for Dashboard
+    const topGainers = [...processedData].sort((a,b) => b._absReturn - a._absReturn).slice(0, 3);
+    const bottomLaggards = [...processedData].sort((a,b) => a._absReturn - b._absReturn).slice(0, 3);
 
     return {
       totalInv, totalCurr, totalReturns, absReturn,
@@ -467,17 +476,24 @@ export default function PortfolioAnalyzer() {
       comparisonData,
       simStats: { originalCount, originalTotalVal, clutterCount: clutterItems.length, clutterVal },
       consolidationPlan,
-      treemapData
+      categories,
+      topGainers,
+      bottomLaggards
     };
   }, [data, simulateCleanup]);
 
-  const toggleCat = (id) => setExpandedCats(prev => ({ ...prev, [id]: !prev[id] }));
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 font-sans">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 font-sans transition-colors duration-300">
         <div className="max-w-2xl w-full">
+            <div className="absolute top-6 right-6">
+                <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-all">
+                    {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
+                </button>
+            </div>
+
           <div className="text-center mb-12">
             <div className="bg-indigo-600 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-indigo-600/30 rotate-3 transition-transform hover:rotate-6">
               <Wallet className="w-12 h-12 text-white" />
@@ -502,6 +518,7 @@ export default function PortfolioAnalyzer() {
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">Upload Holdings File</h3>
                 <p className="text-slate-400 mt-2 text-sm">Supports Groww, Zerodha, CAMS, Karvy formats</p>
+                <p className="text-slate-400 mt-1 text-xs">(PDF statements? Please convert to Excel/CSV first)</p>
                 
                 <div className="mt-8 flex gap-4 text-xs text-slate-400 font-medium">
                     <span className="flex items-center gap-1"><FileSpreadsheet className="w-3 h-3"/> .XLSX</span>
@@ -510,6 +527,16 @@ export default function PortfolioAnalyzer() {
                 </div>
             </div>
           </div>
+
+          <div className="mt-6 flex justify-center">
+              <button 
+                onClick={loadSampleData} 
+                className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-2"
+              >
+                  Or try with sample data <ArrowRightLeft className="w-3 h-3"/>
+              </button>
+          </div>
+
           {error && (
             <div className="mt-6 p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 text-rose-600 rounded-xl text-sm flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -525,9 +552,9 @@ export default function PortfolioAnalyzer() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans pb-24">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans pb-24 transition-colors duration-300">
       {/* Top Navigation */}
-      <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
+      <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 print:hidden">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
@@ -546,7 +573,13 @@ export default function PortfolioAnalyzer() {
                 </button>
             ))}
           </div>
-          <div className="hidden sm:block">
+          <div className="flex items-center gap-2">
+            <button onClick={handlePrint} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors" title="Save as PDF">
+                <Printer className="w-5 h-5"/>
+            </button>
+            <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors">
+                {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
+            </button>
              <button onClick={() => setData(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors" title="Close File"><X className="w-5 h-5" /></button>
           </div>
         </div>
@@ -616,42 +649,72 @@ export default function PortfolioAnalyzer() {
         {activeTab === 'dashboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
              
-             {/* Allocation Chart */}
-             <Card className="min-h-[400px]">
+             {/* AMC Exposure Chart (Expanded) */}
+             <Card className="min-h-[400px] lg:col-span-2">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><PieChart className="w-5 h-5 text-indigo-500" /> Asset Allocation</h3>
+                    <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><BarChart3 className="w-5 h-5 text-indigo-500" /> Top AMC Exposure</h3>
                 </div>
                 <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                        <RechartsPie data={analysis.categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={80} outerRadius={100} paddingAngle={5} cornerRadius={5}>
-                        {analysis.categoryData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />))}
-                        </RechartsPie>
-                        <RechartsTooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value) => formatCurrency(value)} />
-                        <Legend verticalAlign="bottom" height={36} iconType="circle"/>
+                        <BarChart data={analysis.amcData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                            <XAxis type="number" hide />
+                            <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11, fill: '#64748b'}} />
+                            <RechartsTooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} formatter={(value) => formatCurrency(value)} />
+                            <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={20} />
+                        </BarChart>
                     </ResponsiveContainer>
                 </div>
              </Card>
 
-             {/* Treemap */}
-             <Card className="min-h-[400px]">
-                 <div className="flex items-center justify-between mb-2">
-                     <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><Layers className="w-5 h-5 text-indigo-500" /> Portfolio Map</h3>
-                 </div>
-                 <p className="text-xs text-slate-400 mb-6">Box size represents current value. Helps visualize fragmentation.</p>
-                 <div className="h-[300px] w-full rounded-xl overflow-hidden">
-                     <ResponsiveContainer width="100%" height="100%">
-                        <Treemap
-                            data={analysis.treemapData}
-                            dataKey="size"
-                            aspectRatio={4 / 3}
-                            stroke="#fff"
-                            content={<CustomizedTreemapContent />}
-                        >
-                            <RechartsTooltip contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} formatter={(value) => formatCurrency(value)} />
-                        </Treemap>
-                     </ResponsiveContainer>
-                 </div>
-             </Card>
+             {/* Performance Highlights Section (Replaces Treemap) */}
+             <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* Top Gainers */}
+                 <Card className="border-t-4 border-t-emerald-500">
+                     <div className="flex items-center justify-between mb-4">
+                         <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><Trophy className="w-5 h-5 text-emerald-500" /> Top Gainers</h3>
+                         <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Leaders</span>
+                     </div>
+                     <div className="space-y-4">
+                         {analysis.topGainers.map((fund, idx) => (
+                             <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                                 <div>
+                                     <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
+                                     <div className="text-xs text-slate-500 mt-0.5">{formatCurrency(fund['Current Value'])}</div>
+                                 </div>
+                                 <div className="text-right">
+                                     <div className="text-sm font-bold text-emerald-600">+{fund._absReturn.toFixed(2)}%</div>
+                                     <div className="text-[10px] text-slate-400 uppercase font-medium">Return</div>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                 </Card>
+
+                 {/* Bottom Laggards */}
+                 <Card className="border-t-4 border-t-rose-500">
+                     <div className="flex items-center justify-between mb-4">
+                         <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><AlertCircle className="w-5 h-5 text-rose-500" /> Concern Areas</h3>
+                         <span className="text-xs font-semibold bg-rose-100 text-rose-700 px-2 py-1 rounded-full">Laggards</span>
+                     </div>
+                     <div className="space-y-4">
+                         {analysis.bottomLaggards.map((fund, idx) => (
+                             <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                                 <div>
+                                     <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
+                                     <div className="text-xs text-slate-500 mt-0.5">{formatCurrency(fund['Current Value'])}</div>
+                                 </div>
+                                 <div className="text-right">
+                                     <div className={`text-sm font-bold ${fund._absReturn >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                         {fund._absReturn > 0 ? '+' : ''}{fund._absReturn.toFixed(2)}%
+                                     </div>
+                                     <div className="text-[10px] text-slate-400 uppercase font-medium">Return</div>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                 </Card>
+             </div>
 
              {/* Action Items Row */}
              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -851,7 +914,19 @@ export default function PortfolioAnalyzer() {
                 <Card noPadding>
                     <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
                         <h3 className="font-bold text-lg text-slate-800 dark:text-white">All Holdings</h3>
-                        <div className="flex gap-3 w-full sm:w-auto">
+                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                            {/* Category Filter */}
+                            <div className="relative">
+                                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                <select 
+                                    value={categoryFilter}
+                                    onChange={(e) => setCategoryFilter(e.target.value)}
+                                    className="w-full sm:w-40 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all appearance-none cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
+                                >
+                                    {analysis.categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                </select>
+                            </div>
+
                             <div className="relative w-full sm:w-64 group">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                 <input 
@@ -877,7 +952,10 @@ export default function PortfolioAnalyzer() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {analysis.processedData.filter(i => i['Scheme Name'].toLowerCase().includes(searchTerm.toLowerCase())).map((item, idx) => (
+                                {analysis.processedData
+                                    .filter(i => categoryFilter === 'All' || i['Category'] === categoryFilter)
+                                    .filter(i => i['Scheme Name'].toLowerCase().includes(searchTerm.toLowerCase()))
+                                    .map((item, idx) => (
                                     <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="font-medium text-slate-900 dark:text-white truncate max-w-sm" title={item['Scheme Name']}>{item['Scheme Name']}</div>
