@@ -6,7 +6,7 @@ import {
   Download, Briefcase, Shield, Gauge, BarChart3,
   Wand2, Trash2, ArrowRightLeft, Target, Layers, Wallet,
   Trophy, AlertCircle, Info, ExternalLink, Calendar,
-  LineChart as LineChartIcon
+  LineChart as LineChartIcon, ArrowUpDown, ArrowDown as ArrowDownIcon, ArrowUp as ArrowUpIcon
 } from 'lucide-react';
 import { 
   PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, 
@@ -24,6 +24,7 @@ import {
  * - AMC Analysis & Dark Mode
  * - Live Fund Details via MFAPI.in
  * - Wealth Projection & Distribution Analysis
+ * - Holdings Summary Footer & Sorting
  */
 
 // --- UI Components ---
@@ -455,6 +456,7 @@ export default function PortfolioAnalyzer() {
   const [simulateCleanup, setSimulateCleanup] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [selectedFundName, setSelectedFundName] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'Current Value', direction: 'desc' });
 
   const scriptLoaded = useRef(false);
 
@@ -535,6 +537,14 @@ export default function PortfolioAnalyzer() {
         };
         reader.readAsText(file);
     }
+  };
+
+  // Sorting Handler
+  const handleSort = (key) => {
+    setSortConfig(current => ({
+        key,
+        direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+    }));
   };
 
   // --- Analytics Engine ---
@@ -740,6 +750,15 @@ export default function PortfolioAnalyzer() {
     const topGainers = [...processedData].sort((a,b) => b._absReturn - a._absReturn).slice(0, 3);
     const bottomLaggards = [...processedData].sort((a,b) => a._absReturn - b._absReturn).slice(0, 3);
 
+    // Calculate dynamic totals based on filtered data for Holdings view
+    const getFilteredTotals = (filtered) => {
+        return filtered.reduce((acc, item) => ({
+            invested: acc.invested + (item['Invested Value'] || 0),
+            current: acc.current + (item['Current Value'] || 0),
+            returns: acc.returns + (item['Returns'] || 0)
+        }), { invested: 0, current: 0, returns: 0 });
+    };
+
     return {
       totalInv, totalCurr, totalReturns, absReturn,
       lossMakers, clutter, categoryData, amcData, processedData, categoryTree,
@@ -752,7 +771,8 @@ export default function PortfolioAnalyzer() {
       bottomLaggards,
       wealthProjection,
       distributionData,
-      portfolioXIRR
+      portfolioXIRR,
+      getFilteredTotals
     };
   }, [data, simulateCleanup]);
 
@@ -824,6 +844,48 @@ export default function PortfolioAnalyzer() {
       </div>
     );
   }
+
+  // Calculate filtered data for rendering
+  const filteredHoldings = analysis.processedData
+      .filter(i => categoryFilter === 'All' || i['Category'] === categoryFilter)
+      .filter(i => i['Scheme Name'].toLowerCase().includes(searchTerm.toLowerCase()));
+
+  // Sort Logic
+  const sortedHoldings = [...filteredHoldings].sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+
+      // Handle Strings
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+  });
+
+  // Calculate totals for the filtered view
+  const totals = analysis.getFilteredTotals(sortedHoldings);
+  const totalReturnPercent = totals.invested > 0 ? (totals.returns / totals.invested) * 100 : 0;
+
+  // Helper for Sort Header
+  const SortableHeader = ({ label, sortKey, align = 'left' }) => (
+      <th 
+        className={`px-4 py-4 text-${align} cursor-pointer group hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors`}
+        onClick={() => handleSort(sortKey)}
+      >
+          <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+              {label}
+              <div className="flex flex-col text-slate-400">
+                  {sortConfig.key === sortKey ? (
+                      sortConfig.direction === 'asc' ? <ArrowUpIcon className="w-3 h-3 text-indigo-500" /> : <ArrowDownIcon className="w-3 h-3 text-indigo-500" />
+                  ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50" />
+                  )}
+              </div>
+          </div>
+      </th>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans pb-24 transition-colors duration-300">
@@ -1320,18 +1382,15 @@ export default function PortfolioAnalyzer() {
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 font-semibold border-b border-slate-100 dark:border-slate-700">
                                 <tr>
-                                    <th className="px-6 py-4">Scheme Name</th>
-                                    <th className="px-4 py-4 text-right">Units</th>
-                                    <th className="px-4 py-4 text-right">Invested</th>
-                                    <th className="px-4 py-4 text-right">Current Value</th>
-                                    <th className="px-6 py-4 text-right">Net Return</th>
+                                    <SortableHeader label="Scheme Name" sortKey="Scheme Name" />
+                                    <SortableHeader label="Units" sortKey="Units" align="right" />
+                                    <SortableHeader label="Invested" sortKey="Invested Value" align="right" />
+                                    <SortableHeader label="Current Value" sortKey="Current Value" align="right" />
+                                    <SortableHeader label="Net Return" sortKey="Returns" align="right" />
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {analysis.processedData
-                                    .filter(i => categoryFilter === 'All' || i['Category'] === categoryFilter)
-                                    .filter(i => i['Scheme Name'].toLowerCase().includes(searchTerm.toLowerCase()))
-                                    .map((item, idx) => (
+                                {sortedHoldings.map((item, idx) => (
                                     <tr 
                                         key={idx} 
                                         className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
@@ -1359,6 +1418,21 @@ export default function PortfolioAnalyzer() {
                                     </tr>
                                 ))}
                             </tbody>
+                            <tfoot className="bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                                <tr>
+                                    <td className="px-6 py-4" colSpan={2}>Total ({filteredHoldings.length} Funds)</td>
+                                    <td className="px-4 py-4 text-right">{formatNumber(totals.invested, 0)}</td>
+                                    <td className="px-4 py-4 text-right">{formatNumber(totals.current, 0)}</td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className={`${totals.returns >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {totals.returns >= 0 ? '+' : ''}{formatNumber(totals.returns, 0)}
+                                        </div>
+                                        <div className={`text-xs font-medium ${totalReturnPercent >= 0 ? 'text-emerald-600/70' : 'text-rose-600/70'}`}>
+                                            {totalReturnPercent.toFixed(2)}%
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </Card>
