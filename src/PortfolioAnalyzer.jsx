@@ -2,11 +2,12 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Upload, AlertTriangle, TrendingUp, TrendingDown, 
   PieChart, Activity, Search, Filter, X, FileSpreadsheet, 
-  RefreshCw, ArrowUp, 
+  RefreshCw, ArrowUp, LayoutDashboard,
   Download, Briefcase, Shield, Gauge, BarChart3,
   Wand2, Trash2, ArrowRightLeft, Target, Layers, Wallet,
   Trophy, AlertCircle, Info, ExternalLink, Calendar,
-  LineChart as LineChartIcon, ArrowUpDown, ArrowDown as ArrowDownIcon, ArrowUp as ArrowUpIcon
+  LineChart as LineChartIcon, ArrowUpDown, ArrowDown as ArrowDownIcon, ArrowUp as ArrowUpIcon,
+  Menu, MoreHorizontal, Sliders
 } from 'lucide-react';
 import { 
   PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, 
@@ -14,24 +15,11 @@ import {
   CartesianGrid, ComposedChart, Line, LineChart, Area, AreaChart
 } from 'recharts';
 
-/**
- * Portfolio Analyzer Pro (Modern UI Edition)
- * Features:
- * - Premium Fintech UI Design
- * - "Portfolio Detox" Simulator
- * - Consolidation Engine
- * - Smart Benchmarking
- * - AMC Analysis
- * - Live Fund Details via MFAPI.in
- * - Wealth Projection & Distribution Analysis
- * - Holdings Summary Footer & Sorting
- */
-
 // --- UI Components ---
 
 const Card = ({ children, className = "", noPadding = false }) => (
-  <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-black/20 border border-slate-100 dark:border-slate-800 overflow-hidden ${className}`}>
-    <div className={noPadding ? "" : "p-6"}>
+  <div className={`bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-all duration-200 hover:shadow-md ${className}`}>
+    <div className={noPadding ? "" : "p-5 md:p-6"}>
       {children}
     </div>
   </div>
@@ -47,19 +35,19 @@ const Badge = ({ children, type = "neutral", className = "" }) => {
     purple: "bg-violet-50 text-violet-700 border border-violet-100"
   };
   return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${styles[type] || styles.neutral} ${className}`}>
+    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide ${styles[type] || styles.neutral} ${className}`}>
       {children}
     </span>
   );
 };
 
 const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon }) => {
-  const baseStyle = "flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-95";
+  const baseStyle = "flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl font-semibold transition-all duration-200 active:scale-95 text-sm";
   const variants = {
-    primary: "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200",
+    primary: "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 dark:shadow-none",
     secondary: "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm",
     danger: "bg-rose-50 hover:bg-rose-100 text-rose-700",
-    ghost: "text-slate-500 hover:bg-slate-100",
+    ghost: "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
     outline: "border-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50"
   };
 
@@ -125,24 +113,18 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
       setLoading(true);
       setError(null);
       try {
-        // 1. Search for Scheme Code
         const searchRes = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(schemeName)}`);
         const searchData = await searchRes.json();
 
         if (searchData && searchData.length > 0) {
-          // Take the first result (usually the most relevant)
           const code = searchData[0].schemeCode;
-          
-          // 2. Fetch Scheme Details
           const detailRes = await fetch(`https://api.mfapi.in/mf/${code}`);
           const detailData = await detailRes.json();
           
           if(detailData.status === "SUCCESS") {
               setDetails(detailData.meta);
+              const rawData = detailData.data; 
               
-              const rawData = detailData.data; // [{date: "DD-MM-YYYY", nav: "123"}, ...]
-              
-              // Helper to parse "DD-MM-YYYY"
               const parseDate = (str) => {
                   const [d, m, y] = str.split('-');
                   return new Date(`${y}-${m}-${d}`);
@@ -150,12 +132,10 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
 
               const currentNav = parseFloat(rawData[0].nav);
               
-              // Find historical NAVs
               const findNavAgo = (days) => {
                   const today = parseDate(rawData[0].date);
                   const targetDate = new Date(today);
                   targetDate.setDate(today.getDate() - days);
-                  // Find entry closest to target date (data is desc)
                   const entry = rawData.find(d => parseDate(d.date) <= targetDate);
                   return entry ? parseFloat(entry.nav) : null;
               };
@@ -164,12 +144,10 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
               const nav3Y = findNavAgo(365 * 3);
               const nav5Y = findNavAgo(365 * 5);
 
-              // 52 Week High/Low (approx last 260 trading days)
               const oneYearNavs = rawData.slice(0, 260).map(d => parseFloat(d.nav));
               const high52 = Math.max(...oneYearNavs);
               const low52 = Math.min(...oneYearNavs);
 
-              // Calculate Returns/CAGR
               const calcCAGR = (start, end, years) => {
                   if(!start) return null;
                   return ((Math.pow(end/start, 1/years) - 1) * 100).toFixed(2);
@@ -183,7 +161,6 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
                   low52
               });
 
-              // Chart Data (1 Year)
               const chartData = rawData.slice(0, 260).map(d => ({
                   date: d.date,
                   nav: parseFloat(d.nav)
@@ -206,24 +183,30 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
   }, [schemeName]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-t-[2rem] md:rounded-3xl w-full max-w-4xl h-[90vh] md:h-auto md:max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col transform transition-transform duration-300">
+        
+        {/* Modal Handle for Mobile */}
+        <div className="md:hidden w-full flex justify-center pt-3 pb-1">
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+        </div>
+
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md z-10">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">{schemeName}</h2>
-            <div className="flex items-center gap-2 mt-1">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight pr-8">{schemeName}</h2>
+            <div className="flex items-center gap-2 mt-2">
                 <Badge type="blue">{details?.scheme_category || 'Mutual Fund'}</Badge>
                 <span className="text-xs text-slate-400 border-l border-slate-300 pl-2 ml-1">Data by mfapi.in</span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 -mr-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
             <X className="w-6 h-6 text-slate-500" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 flex-1">
+        <div className="p-6 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-64 space-y-4">
               <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
@@ -233,38 +216,38 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
             <div className="flex flex-col items-center justify-center h-64 space-y-4 text-center">
               <div className="bg-rose-100 text-rose-500 p-4 rounded-full"><AlertTriangle className="w-8 h-8" /></div>
               <p className="text-slate-800 dark:text-slate-200 font-medium">{error}</p>
-              <p className="text-slate-500 text-xs max-w-xs">We couldn't match "{schemeName}" with the API database. Try checking the name in your file.</p>
+              <p className="text-slate-500 text-xs max-w-xs">We couldn't match this fund with the database.</p>
             </div>
           ) : (
             <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
               
               {/* Key Stats Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <div className="text-xs text-slate-500 uppercase font-semibold">Current NAV</div>
-                      <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">₹{history[history.length-1]?.nav}</div>
-                      <div className="text-[10px] text-slate-400 mt-1">As of {history[history.length-1]?.date}</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                  <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800">
+                      <div className="text-[10px] md:text-xs text-indigo-500 uppercase font-bold tracking-wider">Current NAV</div>
+                      <div className="text-xl md:text-2xl font-bold text-indigo-700 dark:text-indigo-400 mt-1">₹{history[history.length-1]?.nav}</div>
+                      <div className="text-[10px] text-indigo-400/80 mt-1">Updated {history[history.length-1]?.date}</div>
                   </div>
                   
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <div className="text-xs text-slate-500 uppercase font-semibold">1 Year Return</div>
-                      <div className={`text-2xl font-bold mt-1 ${perfStats.ret1Y >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <div className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider">1Y Return</div>
+                      <div className={`text-xl md:text-2xl font-bold mt-1 ${perfStats.ret1Y >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                           {perfStats.ret1Y > 0 ? '+' : ''}{perfStats.ret1Y}%
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1">Absolute</div>
                   </div>
 
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <div className="text-xs text-slate-500 uppercase font-semibold">3 Year CAGR</div>
-                      <div className="text-2xl font-bold text-slate-800 dark:text-white mt-1">
+                      <div className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider">3Y CAGR</div>
+                      <div className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white mt-1">
                           {perfStats.cagr3Y ? `${perfStats.cagr3Y}%` : 'N/A'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1">Annualized</div>
                   </div>
 
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <div className="text-xs text-slate-500 uppercase font-semibold">5 Year CAGR</div>
-                      <div className="text-2xl font-bold text-slate-800 dark:text-white mt-1">
+                      <div className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider">5Y CAGR</div>
+                      <div className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white mt-1">
                           {perfStats.cagr5Y ? `${perfStats.cagr5Y}%` : 'N/A'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1">Annualized</div>
@@ -273,10 +256,10 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Chart */}
-                  <div className="lg:col-span-2 h-[320px] w-full bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-2">NAV Movement (1 Year)</h3>
-                        <Badge type="neutral" className="text-[10px]">1Y Trend</Badge>
+                  <div className="lg:col-span-2 h-[280px] md:h-[320px] w-full bg-white dark:bg-slate-800 rounded-2xl p-2 md:p-4 border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex justify-between items-center mb-4 px-2">
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">NAV Trend (1Y)</h3>
+                        <Badge type="neutral" className="text-[10px]">1 Year</Badge>
                     </div>
                     <ResponsiveContainer width="100%" height="85%">
                     <AreaChart data={history}>
@@ -305,7 +288,7 @@ const FundDetailsModal = ({ schemeName, onClose }) => {
                           <div className="space-y-3 text-sm">
                               <div className="flex justify-between">
                                   <span className="text-slate-500">Fund House</span>
-                                  <span className="font-medium text-slate-800 dark:text-slate-200 text-right w-1/2">{details?.fund_house}</span>
+                                  <span className="font-medium text-slate-800 dark:text-slate-200 text-right w-1/2 truncate">{details?.fund_house}</span>
                               </div>
                               <div className="flex justify-between">
                                   <span className="text-slate-500">Scheme Code</span>
@@ -361,10 +344,10 @@ const SAMPLE_DATA = [
     { 'Scheme Name': 'Axis Midcap Fund', 'Category': 'Equity', 'Sub-category': 'Mid Cap', 'AMC': 'Axis Mutual Fund', 'Units': 300, 'Invested Value': 45000, 'Current Value': 55000, 'Returns': 10000, 'XIRR': 14.2 },
     { 'Scheme Name': 'Parag Parikh Flexi Cap', 'Category': 'Equity', 'Sub-category': 'Flexi Cap', 'AMC': 'PPFAS Mutual Fund', 'Units': 400, 'Invested Value': 80000, 'Current Value': 110000, 'Returns': 30000, 'XIRR': 18.5 },
     { 'Scheme Name': 'HDFC Balanced Advantage', 'Category': 'Hybrid', 'Sub-category': 'Dynamic Asset Allocation', 'AMC': 'HDFC Mutual Fund', 'Units': 100, 'Invested Value': 10000, 'Current Value': 12000, 'Returns': 2000, 'XIRR': 9.5 },
-    { 'Scheme Name': 'Nippon India Small Cap', 'Category': 'Equity', 'Sub-category': 'Small Cap', 'AMC': 'Nippon India Mutual Fund', 'Units': 50, 'Invested Value': 4000, 'Current Value': 4500, 'Returns': 500, 'XIRR': 12.0 }, // Clutter example
-    { 'Scheme Name': 'UTI Nifty 50 Index', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'UTI Mutual Fund', 'Units': 100, 'Invested Value': 15000, 'Current Value': 14000, 'Returns': -1000, 'XIRR': -5.0 }, // Loss example
+    { 'Scheme Name': 'Nippon India Small Cap', 'Category': 'Equity', 'Sub-category': 'Small Cap', 'AMC': 'Nippon India Mutual Fund', 'Units': 50, 'Invested Value': 4000, 'Current Value': 4500, 'Returns': 500, 'XIRR': 12.0 }, 
+    { 'Scheme Name': 'UTI Nifty 50 Index', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'UTI Mutual Fund', 'Units': 100, 'Invested Value': 15000, 'Current Value': 14000, 'Returns': -1000, 'XIRR': -5.0 }, 
     { 'Scheme Name': 'ICICI Prudential Bluechip', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'ICICI Prudential', 'Units': 150, 'Invested Value': 30000, 'Current Value': 38000, 'Returns': 8000, 'XIRR': 13.0 },
-    { 'Scheme Name': 'SBI Bluechip Fund', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'SBI Mutual Fund', 'Units': 120, 'Invested Value': 25000, 'Current Value': 29000, 'Returns': 4000, 'XIRR': 11.0 } // Consolidation candidate with HDFC/ICICI/UTI
+    { 'Scheme Name': 'SBI Bluechip Fund', 'Category': 'Equity', 'Sub-category': 'Large Cap', 'AMC': 'SBI Mutual Fund', 'Units': 120, 'Invested Value': 25000, 'Current Value': 29000, 'Returns': 4000, 'XIRR': 11.0 } 
 ];
 
 // --- Parsing Logic ---
@@ -454,13 +437,13 @@ export default function PortfolioAnalyzer() {
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [excelReady, setExcelReady] = useState(false);
   const [simulateCleanup, setSimulateCleanup] = useState(false);
-  const [darkMode, setDarkMode] = useState(false); // Kept state for compatibility, but UI removed
+  const [clutterThreshold, setClutterThreshold] = useState(5000);
   const [selectedFundName, setSelectedFundName] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: 'Current Value', direction: 'desc' });
+  const [darkMode, setDarkMode] = useState(false);
 
   const scriptLoaded = useRef(false);
 
-  // Dark Mode Toggle Logic (Preserved but no UI toggle)
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -539,7 +522,6 @@ export default function PortfolioAnalyzer() {
     }
   };
 
-  // Sorting Handler
   const handleSort = (key) => {
     setSortConfig(current => ({
         key,
@@ -547,7 +529,6 @@ export default function PortfolioAnalyzer() {
     }));
   };
 
-  // --- Analytics Engine ---
   const analysis = useMemo(() => {
     if (!data) return null;
 
@@ -566,11 +547,16 @@ export default function PortfolioAnalyzer() {
 
     const originalCount = processedData.length;
     const originalTotalVal = processedData.reduce((acc, c) => acc + c['Current Value'], 0);
-    const clutterItems = processedData.filter(i => i['Current Value'] < 5000);
+    
+    // Explicitly calculate these before anything else to avoid ReferenceErrors
+    const clutterItems = processedData.filter(i => i['Current Value'] < clutterThreshold);
     const clutterVal = clutterItems.reduce((acc, c) => acc + c['Current Value'], 0);
+    
+    // Create clutterList for usage in JSX (renamed from clutter to avoid conflicts)
+    const clutterList = clutterItems; 
 
     if (simulateCleanup) {
-        processedData = processedData.filter(i => i['Current Value'] >= 5000);
+        processedData = processedData.filter(i => i['Current Value'] >= clutterThreshold);
     }
 
     const totalInv = processedData.reduce((acc, curr) => acc + (curr['Invested Value'] || 0), 0);
@@ -582,14 +568,16 @@ export default function PortfolioAnalyzer() {
     const subCategoryCounts = {};
     const byAMC = {};
     const lossMakers = [];
-    const clutter = [];
+    // Note: We use clutterList calculated above for the 'clutter' view, 
+    // but lossMakers are based on the currently filtered view
     const categoryXIRR = {}; 
 
     const smartGroups = {};
     
-    // Weighted XIRR calculation variables
     let totalWeightedXIRR = 0;
     let totalXIRRWeight = 0;
+    let totalEquity = 0;
+    let totalDebt = 0;
 
     processedData.forEach(item => {
       const cat = item['Category'] || 'Other';
@@ -603,18 +591,18 @@ export default function PortfolioAnalyzer() {
       byAMC[amc] = (byAMC[amc] || 0) + currVal;
       subCategoryCounts[subCat] = (subCategoryCounts[subCat] || 0) + 1;
 
+      if (cat && cat.toLowerCase().includes('equity')) totalEquity += currVal;
+      else if (cat && (cat.toLowerCase().includes('debt') || cat.toLowerCase().includes('liquid'))) totalDebt += currVal;
+
       if (!categoryXIRR[subCat]) categoryXIRR[subCat] = { sumProduct: 0, sumWeight: 0 };
       if (xirr && !isNaN(xirr) && xirr !== 0) {
           categoryXIRR[subCat].sumProduct += (xirr * currVal);
           categoryXIRR[subCat].sumWeight += currVal;
-          
-          // Global portfolio weighted XIRR
           totalWeightedXIRR += (xirr * currVal);
           totalXIRRWeight += currVal;
       }
 
       if (item['Returns'] < 0) lossMakers.push(item);
-      if (currVal < 5000) clutter.push(item);
 
       if (!smartGroups[cat]) smartGroups[cat] = {};
       if (!smartGroups[cat][subCat]) smartGroups[cat][subCat] = { totalVal: 0, totalInv: 0, funds: {} };
@@ -638,39 +626,27 @@ export default function PortfolioAnalyzer() {
       }
     });
     
-    // Overall Portfolio XIRR (Weighted)
     const portfolioXIRR = totalXIRRWeight > 0 ? (totalWeightedXIRR / totalXIRRWeight) : 0;
+    const equityRatio = totalCurr > 0 ? (totalEquity / totalCurr) * 100 : 0;
 
-    // Wealth Projection Data (Next 10 Years)
     const projectionYears = [0, 1, 3, 5, 10];
     const wealthProjection = projectionYears.map(year => {
         return {
             year: `Year ${year}`,
             portfolio: Math.round(totalCurr * Math.pow(1 + portfolioXIRR / 100, year)),
-            benchmark: Math.round(totalCurr * Math.pow(1 + 12 / 100, year)) // Assuming 12% benchmark
+            benchmark: Math.round(totalCurr * Math.pow(1 + 12 / 100, year)) 
         };
     });
 
-    // Return Distribution Histogram
-    const distributionBuckets = {
-        '> 20%': 0,
-        '12% - 20%': 0,
-        '0% - 12%': 0,
-        'Negative': 0
-    };
-    
+    const distributionBuckets = { '> 20%': 0, '12% - 20%': 0, '0% - 12%': 0, 'Negative': 0 };
     processedData.forEach(item => {
-        // Prefer XIRR if available, else use absolute return
         const ret = item['XIRR'] && item['XIRR'] !== 0 ? item['XIRR'] : item._absReturn;
-        
         if (ret > 20) distributionBuckets['> 20%']++;
         else if (ret >= 12) distributionBuckets['12% - 20%']++;
         else if (ret >= 0) distributionBuckets['0% - 12%']++;
         else distributionBuckets['Negative']++;
     });
-    
     const distributionData = Object.entries(distributionBuckets).map(([name, value]) => ({ name, value }));
-
 
     const comparisonData = [];
     Object.keys(categoryXIRR).forEach(subCat => {
@@ -697,7 +673,7 @@ export default function PortfolioAnalyzer() {
             });
         }
     });
-    comparisonData.sort((a,b) => b.weight - a.weight);
+    // comparisonData.sort((a,b) => b.weight - a.weight);
 
     const categoryTree = Object.keys(smartGroups).map(catKey => {
         const subCats = Object.keys(smartGroups[catKey]).map(subKey => {
@@ -732,7 +708,7 @@ export default function PortfolioAnalyzer() {
     });
 
     const categoryData = Object.entries(byCategory).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-    const amcData = Object.entries(byAMC).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 7); // Top 7 AMCs
+    const amcData = Object.entries(byAMC).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 7); 
 
     let score = 100;
     score -= Math.min(20, clutterItems.length * 2);
@@ -743,14 +719,10 @@ export default function PortfolioAnalyzer() {
     
     let healthLabel = score < 40 ? "Critical" : score < 60 ? "Poor" : score < 80 ? "Good" : "Excellent";
     
-    // Get unique categories for filter
     const categories = ['All', ...new Set(processedData.map(d => d['Category']).filter(Boolean))];
-
-    // Highs and Lows for Dashboard
     const topGainers = [...processedData].sort((a,b) => b._absReturn - a._absReturn).slice(0, 3);
     const bottomLaggards = [...processedData].sort((a,b) => a._absReturn - b._absReturn).slice(0, 3);
 
-    // Calculate dynamic totals based on filtered data for Holdings view
     const getFilteredTotals = (filtered) => {
         return filtered.reduce((acc, item) => ({
             invested: acc.invested + (item['Invested Value'] || 0),
@@ -761,7 +733,7 @@ export default function PortfolioAnalyzer() {
 
     return {
       totalInv, totalCurr, totalReturns, absReturn,
-      lossMakers, clutter, categoryData, amcData, processedData, categoryTree,
+      lossMakers, clutter: clutterList, categoryData, amcData, processedData, categoryTree,
       healthScore: { score, label: healthLabel },
       comparisonData,
       simStats: { originalCount, originalTotalVal, clutterCount: clutterItems.length, clutterVal },
@@ -772,29 +744,31 @@ export default function PortfolioAnalyzer() {
       wealthProjection,
       distributionData,
       portfolioXIRR,
-      getFilteredTotals
+      getFilteredTotals,
+      equityRatio
     };
-  }, [data, simulateCleanup]);
+  }, [data, simulateCleanup, clutterThreshold]);
 
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 font-sans transition-colors duration-300">
-        <div className="max-w-2xl w-full">
-            {/* Dark mode toggle removed from landing page */}
-
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 font-sans transition-colors duration-300 relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-indigo-50/50 to-transparent dark:from-indigo-950/20 pointer-events-none"></div>
+        
+        <div className="max-w-2xl w-full relative z-10">
           <div className="text-center mb-12">
-            <div className="bg-indigo-600 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-indigo-600/30 rotate-3 transition-transform hover:rotate-6">
+            <div className="bg-gradient-to-br from-indigo-500 to-violet-600 w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-indigo-500/30 rotate-3 transition-transform hover:rotate-6">
               <Wallet className="w-12 h-12 text-white" />
             </div>
-            <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white mb-4 tracking-tight">Vivek Narkhede's <span className="text-indigo-600">Portfolio Analyzer</span></h1>
+            <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white mb-4 tracking-tight">Vivek Narkhede's <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Portfolio</span></h1>
             <p className="text-lg text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
-                Advanced wealth analytics in your browser. <br/>Drag & drop your broker statement (.csv or .xlsx) to begin.
+                Next-generation wealth analytics. <br/>Drag & drop your broker statement to begin.
             </p>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-10 shadow-xl shadow-slate-200/50 dark:shadow-black/30 border border-slate-100 dark:border-slate-700 text-center relative overflow-hidden group">
+          <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-[2rem] p-10 shadow-2xl shadow-slate-200/50 dark:shadow-black/50 border border-white/50 dark:border-slate-700 text-center relative overflow-hidden group">
              <div className="absolute inset-0 bg-indigo-50/50 dark:bg-indigo-900/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
              <input 
               type="file" 
@@ -808,75 +782,69 @@ export default function PortfolioAnalyzer() {
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">Upload Holdings File</h3>
                 <p className="text-slate-400 mt-2 text-sm">Supports Groww, Zerodha, CAMS, Karvy formats</p>
-                <p className="text-slate-400 mt-1 text-xs">(PDF statements? Please convert to Excel/CSV first)</p>
                 
                 <div className="mt-8 flex gap-4 text-xs text-slate-400 font-medium">
                     <span className="flex items-center gap-1"><FileSpreadsheet className="w-3 h-3"/> .XLSX</span>
                     <span className="flex items-center gap-1"><FileSpreadsheet className="w-3 h-3"/> .CSV</span>
-                    <span className="flex items-center gap-1"><Shield className="w-3 h-3"/> Private & Secure</span>
+                    <span className="flex items-center gap-1"><Shield className="w-3 h-3"/> Secure</span>
                 </div>
             </div>
           </div>
 
-          <div className="mt-6 flex justify-center">
+          <div className="mt-8 flex justify-center">
               <button 
                 onClick={loadSampleData} 
-                className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-2"
+                className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:underline flex items-center gap-2 transition-colors"
               >
                   Or try with sample data <ArrowRightLeft className="w-3 h-3"/>
               </button>
           </div>
 
           {error && (
-            <div className="mt-6 p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 text-rose-600 rounded-xl text-sm flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2">
+            <div className="mt-6 p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 text-rose-600 rounded-2xl text-sm flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" />
                 <div><p className="font-bold">Error</p><p>{error}</p></div>
             </div>
           )}
-          <div className="mt-12 text-center text-slate-400 text-xs max-w-2xl mx-auto leading-relaxed">
-             Disclaimer: I am not registered with the Securities and Exchange Board of India (SEBI) as an Investment Advisor nor registered with the Association of Mutual Funds in India (AMFI) as a Mutual Fund Distributor. Any information shared is purely for educational purposes and does not constitute investment advice, recommendation, or solicitation. Mutual fund investments are subject to market risks. Please read all scheme related documents carefully before investing
+          
+          <div className="mt-16 text-center text-slate-400 text-[10px] max-w-lg mx-auto leading-relaxed opacity-60">
+             Disclaimer: Not SEBI registered. Information for educational purposes only. Mutual fund investments are subject to market risks.
           </div>
         </div>
       </div>
     );
   }
 
-  // Calculate filtered data for rendering
+  // Calculate filtered & sorted data
   const filteredHoldings = analysis.processedData
       .filter(i => categoryFilter === 'All' || i['Category'] === categoryFilter)
       .filter(i => i['Scheme Name'].toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Sort Logic
   const sortedHoldings = [...filteredHoldings].sort((a, b) => {
       let aVal = a[sortConfig.key];
       let bVal = b[sortConfig.key];
-
-      // Handle Strings
       if (typeof aVal === 'string') aVal = aVal.toLowerCase();
       if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-
       if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
   });
 
-  // Calculate totals for the filtered view
   const totals = analysis.getFilteredTotals(sortedHoldings);
   const totalReturnPercent = totals.invested > 0 ? (totals.returns / totals.invested) * 100 : 0;
 
-  // Helper for Sort Header
   const SortableHeader = ({ label, sortKey, align = 'left' }) => (
       <th 
-        className={`px-4 py-4 text-${align} cursor-pointer group hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors`}
+        className={`px-6 py-4 text-${align} cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors first:rounded-l-xl last:rounded-r-xl`}
         onClick={() => handleSort(sortKey)}
       >
-          <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+          <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
               {label}
-              <div className="flex flex-col text-slate-400">
+              <div className="flex flex-col text-slate-300">
                   {sortConfig.key === sortKey ? (
                       sortConfig.direction === 'asc' ? <ArrowUpIcon className="w-3 h-3 text-indigo-500" /> : <ArrowDownIcon className="w-3 h-3 text-indigo-500" />
                   ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />
                   )}
               </div>
           </div>
@@ -884,70 +852,94 @@ export default function PortfolioAnalyzer() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans pb-24 transition-colors duration-300">
-      {/* Top Navigation - Redesigned for Mobile Clarity */}
-      <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 py-3 md:py-0 md:h-16 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans pb-24 md:pb-12 transition-colors duration-300">
+      
+      {/* Desktop Navigation (Top) */}
+      <nav className="hidden md:block sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/30">
+              <Wallet className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">Vivek Narkhede's <span className="text-indigo-600">Portfolio</span></span>
+          </div>
           
-          {/* Top Row: Logo & Mobile Actions */}
-          <div className="w-full md:w-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
-                <Wallet className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-xl text-slate-800 dark:text-white">Vivek Narkhede's <span className="text-indigo-600">Portfolio</span></span>
-            </div>
-            
-            {/* Mobile Actions: Close (Dark Mode Removed) */}
-            <div className="flex md:hidden items-center gap-2">
-                <button onClick={() => setData(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors bg-slate-50 dark:bg-slate-800/50"><X className="w-5 h-5" /></button>
-            </div>
+          <div className="flex gap-1 bg-slate-100/50 dark:bg-slate-800/50 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+            {['dashboard', 'optimize', 'performance', 'holdings'].map(tab => (
+                 <button 
+                  key={tab}
+                  onClick={() => setActiveTab(tab)} 
+                  className={`px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 capitalize ${activeTab === tab ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
+                >
+                  {tab}
+                </button>
+            ))}
           </div>
 
-          {/* Bottom Row (Mobile) / Center (Desktop): Navigation Tabs */}
-          <div className="w-full md:w-auto overflow-x-auto no-scrollbar order-last md:order-none">
-            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-auto">
-              {['dashboard', 'optimize', 'performance', 'holdings'].map(tab => (
-                  <button 
-                    key={tab}
-                    onClick={() => setActiveTab(tab)} 
-                    className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap capitalize ${activeTab === tab ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                  >
-                    {tab}
-                  </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Desktop Actions (Hidden on Mobile) */}
-          <div className="hidden md:flex items-center gap-2">
-             <button onClick={() => setData(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors" title="Close File"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-3">
+             <button 
+                onClick={() => setData(null)} 
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
+             >
+                <RefreshCw className="w-4 h-4" /> Reset
+             </button>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+      {/* Mobile Top Bar (Branding & Actions) */}
+      <nav className="md:hidden sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-600 p-1.5 rounded-lg shadow-md shadow-indigo-500/20">
+              <Wallet className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-bold text-lg text-slate-900 dark:text-white">Portfolio</span>
+          </div>
+          <button onClick={() => setData(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full">
+            <RefreshCw className="w-5 h-5" />
+          </button>
+      </nav>
+
+      {/* Mobile Bottom Navigation (Tabs) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-safe">
+        <div className="flex justify-around items-center h-16">
+            <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'dashboard' ? 'text-indigo-600' : 'text-slate-400'}`}>
+                <LayoutDashboard className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Home</span>
+            </button>
+            <button onClick={() => setActiveTab('optimize')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'optimize' ? 'text-indigo-600' : 'text-slate-400'}`}>
+                <Wand2 className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Optimize</span>
+            </button>
+            <button onClick={() => setActiveTab('performance')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'performance' ? 'text-indigo-600' : 'text-slate-400'}`}>
+                <LineChartIcon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Growth</span>
+            </button>
+            <button onClick={() => setActiveTab('holdings')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'holdings' ? 'text-indigo-600' : 'text-slate-400'}`}>
+                <Layers className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Holdings</span>
+            </button>
+        </div>
+      </div>
+
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
         
-        {/* Fund Details Modal */}
         {selectedFundName && (
           <FundDetailsModal schemeName={selectedFundName} onClose={() => setSelectedFundName(null)} />
         )}
 
-        {/* Hero Stats Section */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-            {/* Main Value Card */}
-            <div className="md:col-span-6 lg:col-span-5 relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl opacity-30 blur group-hover:opacity-50 transition duration-500"></div>
-                <div className="relative h-full bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl">
-                    <div className="flex items-center gap-3 mb-2 text-slate-500">
-                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg"><Wallet className="w-5 h-5 text-indigo-600"/></div>
-                        <span className="font-semibold text-sm uppercase tracking-wider">Net Worth</span>
-                    </div>
-                    <div className="text-4xl sm:text-5xl font-extrabold text-slate-900 dark:text-white mt-4 tracking-tight">
+        {/* Hero Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
+            {/* Main Value */}
+            <div className="md:col-span-5 relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] opacity-30 blur group-hover:opacity-50 transition duration-500"></div>
+                <div className="relative h-full bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 shadow-xl flex flex-col justify-center">
+                    <div className="text-slate-500 font-medium text-sm uppercase tracking-wider mb-2">Net Worth</div>
+                    <div className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                         {formatCurrency(analysis.totalCurr)}
                     </div>
-                    <div className="mt-6 flex items-center gap-3">
-                        <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold ${analysis.totalReturns >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    <div className="mt-4 flex items-center gap-3">
+                        <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold ${analysis.totalReturns >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                             {analysis.totalReturns >= 0 ? <TrendingUp className="w-4 h-4"/> : <TrendingDown className="w-4 h-4"/>}
                             {formatCurrency(analysis.totalReturns)}
                         </div>
@@ -956,46 +948,39 @@ export default function PortfolioAnalyzer() {
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="md:col-span-6 lg:col-span-7 grid grid-cols-2 gap-4">
-                <Card className="flex flex-col justify-between hover:border-indigo-200 transition-colors">
-                    <div className="flex justify-between items-start">
-                        <div className="text-slate-500 text-sm font-medium">Invested</div>
-                        <Briefcase className="w-5 h-5 text-slate-300"/>
-                    </div>
-                    <div className="text-2xl font-bold text-slate-800 dark:text-slate-200 mt-2">{formatCurrency(analysis.totalInv)}</div>
+            {/* Quick Stats */}
+            <div className="md:col-span-7 grid grid-cols-2 gap-3 md:gap-4">
+                <Card className="flex flex-col justify-between">
+                    <div className="text-slate-500 text-xs md:text-sm font-medium uppercase tracking-wide">Invested</div>
+                    <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(analysis.totalInv)}</div>
                 </Card>
-                <Card className="flex flex-col justify-between hover:border-indigo-200 transition-colors">
-                    <div className="flex justify-between items-start">
-                        <div className="text-slate-500 text-sm font-medium">Absolute Return</div>
-                        <Activity className="w-5 h-5 text-emerald-400"/>
+                <Card className="flex flex-col justify-between">
+                    <div className="text-slate-500 text-xs md:text-sm font-medium uppercase tracking-wide">Returns</div>
+                    <div className={`text-xl md:text-2xl font-bold mt-1 ${analysis.absReturn >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {analysis.absReturn.toFixed(2)}%
                     </div>
-                    <div className={`text-2xl font-bold mt-2 ${analysis.absReturn >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{analysis.absReturn.toFixed(2)}%</div>
                 </Card>
-                <Card className="flex flex-col justify-between hover:border-indigo-200 transition-colors bg-slate-50 dark:bg-slate-800/50 border-none">
-                    <div className="flex justify-between items-start">
-                        <div className="text-slate-500 text-sm font-medium">Active Funds</div>
-                        <Layers className="w-5 h-5 text-slate-300"/>
-                    </div>
-                    <div className="text-2xl font-bold text-slate-800 dark:text-slate-200 mt-2">{analysis.processedData.length}</div>
+                <Card className="flex flex-col justify-between">
+                    <div className="text-slate-500 text-xs md:text-sm font-medium uppercase tracking-wide">Active Funds</div>
+                    <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mt-1">{analysis.processedData.length}</div>
                 </Card>
-                <Card className="relative overflow-hidden border-none bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+                <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none">
                     <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl -mr-10 -mt-10 ${analysis.healthScore.score > 70 ? 'bg-emerald-500' : 'bg-amber-500'} opacity-20`}></div>
-                    <div className="relative z-10">
+                    <div className="relative z-10 flex flex-col justify-between h-full">
                         <div className="flex justify-between items-start">
-                            <div className="text-slate-300 text-sm font-medium flex items-center gap-1"><Shield className="w-3 h-3"/> Health Score</div>
+                            <div className="text-slate-300 text-xs md:text-sm font-medium uppercase tracking-wide">Health Score</div>
                             <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10`}>{analysis.healthScore.label}</div>
                         </div>
-                        <div className="text-3xl font-bold mt-2">{analysis.healthScore.score}<span className="text-lg text-slate-400 font-normal">/100</span></div>
+                        <div className="text-2xl md:text-3xl font-bold mt-1">{analysis.healthScore.score}<span className="text-lg text-slate-400 font-normal">/100</span></div>
                     </div>
                 </Card>
             </div>
         </div>
 
         {activeTab === 'dashboard' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
              
-             {/* AMC Exposure Chart (Expanded) */}
+             {/* AMC Exposure Chart */}
              <Card className="min-h-[400px] lg:col-span-2">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><BarChart3 className="w-5 h-5 text-indigo-500" /> Top AMC Exposure</h3>
@@ -1006,63 +991,59 @@ export default function PortfolioAnalyzer() {
                             <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                             <XAxis type="number" hide />
                             <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11, fill: '#64748b'}} />
-                            <RechartsTooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} formatter={(value) => formatCurrency(value)} />
+                            <RechartsTooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} formatter={(value) => formatCurrency(value)} />
                             <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={20} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
              </Card>
 
-             {/* Performance Highlights Section (Replaces Treemap) */}
+             {/* Performance Highlights */}
              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {/* Top Gainers */}
                  <Card className="border-t-4 border-t-emerald-500">
-                     <div className="flex items-center justify-between mb-4">
+                     <div className="flex items-center justify-between mb-6">
                          <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><Trophy className="w-5 h-5 text-emerald-500" /> Top Gainers</h3>
-                         <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Leaders</span>
+                         <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg">Leaders</span>
                      </div>
-                     <div className="space-y-4">
+                     <div className="space-y-3">
                          {analysis.topGainers.map((fund, idx) => (
                              <div 
                                 key={idx} 
-                                className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                 onClick={() => setSelectedFundName(fund['Scheme Name'])}
                              >
-                                 <div>
-                                     <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
-                                     <div className="text-xs text-slate-500 mt-0.5">{formatCurrency(fund['Current Value'])}</div>
+                                 <div className="min-w-0">
+                                     <div className="text-sm font-bold text-slate-900 dark:text-white truncate pr-4" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
+                                     <div className="text-xs text-slate-500 mt-0.5 font-medium">{formatCurrency(fund['Current Value'])}</div>
                                  </div>
-                                 <div className="text-right">
-                                     <div className="text-sm font-bold text-emerald-600">+{fund._absReturn.toFixed(2)}%</div>
-                                     <div className="text-[10px] text-slate-400 uppercase font-medium flex items-center justify-end gap-1">Return <Info className="w-3 h-3"/></div>
+                                 <div className="text-right shrink-0">
+                                     <div className="text-sm font-bold text-emerald-600">+{fund._absReturn.toFixed(1)}%</div>
                                  </div>
                              </div>
                          ))}
                      </div>
                  </Card>
 
-                 {/* Bottom Laggards */}
                  <Card className="border-t-4 border-t-rose-500">
-                     <div className="flex items-center justify-between mb-4">
+                     <div className="flex items-center justify-between mb-6">
                          <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-white"><AlertCircle className="w-5 h-5 text-rose-500" /> Concern Areas</h3>
-                         <span className="text-xs font-semibold bg-rose-100 text-rose-700 px-2 py-1 rounded-full">Laggards</span>
+                         <span className="text-xs font-semibold bg-rose-50 text-rose-700 px-2 py-1 rounded-lg">Laggards</span>
                      </div>
-                     <div className="space-y-4">
+                     <div className="space-y-3">
                          {analysis.bottomLaggards.map((fund, idx) => (
                              <div 
                                 key={idx} 
-                                className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                 onClick={() => setSelectedFundName(fund['Scheme Name'])}
                              >
-                                 <div>
-                                     <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
-                                     <div className="text-xs text-slate-500 mt-0.5">{formatCurrency(fund['Current Value'])}</div>
+                                 <div className="min-w-0">
+                                     <div className="text-sm font-bold text-slate-900 dark:text-white truncate pr-4" title={fund['Scheme Name']}>{fund['Scheme Name']}</div>
+                                     <div className="text-xs text-slate-500 mt-0.5 font-medium">{formatCurrency(fund['Current Value'])}</div>
                                  </div>
-                                 <div className="text-right">
+                                 <div className="text-right shrink-0">
                                      <div className={`text-sm font-bold ${fund._absReturn >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                         {fund._absReturn > 0 ? '+' : ''}{fund._absReturn.toFixed(2)}%
+                                         {fund._absReturn.toFixed(1)}%
                                      </div>
-                                     <div className="text-[10px] text-slate-400 uppercase font-medium flex items-center justify-end gap-1">Return <Info className="w-3 h-3"/></div>
                                  </div>
                              </div>
                          ))}
@@ -1101,12 +1082,146 @@ export default function PortfolioAnalyzer() {
           </div>
         )}
 
-        {/* --- OPTIMIZATION TAB --- */}
+        {/* --- HOLDINGS TAB --- */}
+        {activeTab === 'holdings' && (
+             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <Card noPadding className="overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50 dark:bg-slate-800/50">
+                        <h3 className="font-bold text-lg text-slate-800 dark:text-white">All Holdings</h3>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                            <div className="relative">
+                                <select 
+                                    value={categoryFilter}
+                                    onChange={(e) => setCategoryFilter(e.target.value)}
+                                    className="w-full pl-4 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none appearance-none cursor-pointer font-medium"
+                                >
+                                    {analysis.categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                </select>
+                                <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
+
+                            <div className="relative w-full sm:w-64 group">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search funds..." 
+                                    value={searchTerm} 
+                                    onChange={(e) => setSearchTerm(e.target.value)} 
+                                    className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                />
+                            </div>
+                            <Button variant="secondary" onClick={() => downloadCSV(analysis.processedData, 'full_holdings.csv')} icon={Download}>Export</Button>
+                        </div>
+                    </div>
+
+                    {/* Mobile: Card View */}
+                    <div className="md:hidden">
+                        {sortedHoldings.map((item, idx) => (
+                            <div 
+                                key={idx} 
+                                className="p-5 border-b border-slate-100 dark:border-slate-800 last:border-0 active:bg-slate-50 dark:active:bg-slate-800/50"
+                                onClick={() => setSelectedFundName(item['Scheme Name'])}
+                            >
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="font-bold text-slate-900 dark:text-white pr-4">{item['Scheme Name']}</div>
+                                    <Badge type="neutral">{item['Category']}</Badge>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <div className="text-slate-500 text-xs uppercase font-medium">Invested</div>
+                                        <div className="font-semibold text-slate-700 dark:text-slate-300 mt-0.5">{formatCurrency(item['Invested Value'])}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-slate-500 text-xs uppercase font-medium">Current</div>
+                                        <div className="font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(item['Current Value'])}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-slate-500 text-xs uppercase font-medium">Return</div>
+                                        <div className={`font-bold mt-0.5 ${item['Returns'] >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {item['Returns'] >= 0 ? '+' : ''}{formatNumber(item['Returns'], 0)}
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-slate-500 text-xs uppercase font-medium">Abs %</div>
+                                        <div className={`font-bold mt-0.5 ${item._absReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {item._absReturn.toFixed(2)}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Desktop: Table View */}
+                    <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-700">
+                                <tr>
+                                    <SortableHeader label="Scheme Name" sortKey="Scheme Name" />
+                                    <SortableHeader label="Units" sortKey="Units" align="right" />
+                                    <SortableHeader label="Invested" sortKey="Invested Value" align="right" />
+                                    <SortableHeader label="Current Value" sortKey="Current Value" align="right" />
+                                    <SortableHeader label="Net Return" sortKey="Returns" align="right" />
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {sortedHoldings.map((item, idx) => (
+                                    <tr 
+                                        key={idx} 
+                                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                        onClick={() => setSelectedFundName(item['Scheme Name'])}
+                                    >
+                                        <td className="px-6 py-4">
+                                            <div className="font-medium text-slate-900 dark:text-white truncate max-w-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                {item['Scheme Name']}
+                                            </div>
+                                            <div className="mt-1">
+                                                <Badge type="neutral" className="text-[10px] py-0 px-2 scale-90 origin-left">{item['Category']}</Badge>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right text-slate-500 font-mono">{formatNumber(item['Units'], 3)}</td>
+                                        <td className="px-6 py-4 text-right font-medium text-slate-600">{formatNumber(item['Invested Value'], 0)}</td>
+                                        <td className="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">{formatNumber(item['Current Value'], 0)}</td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className={`font-bold ${item['Returns'] >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {item['Returns'] >= 0 ? '+' : ''}{formatNumber(item['Returns'], 0)}
+                                            </div>
+                                            <div className={`text-xs mt-0.5 font-medium ${item._absReturn >= 0 ? 'text-emerald-600/70' : 'text-rose-600/70'}`}>
+                                                {item._absReturn.toFixed(2)}%
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot className="bg-slate-50 dark:bg-slate-900 border-t-2 border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                                <tr>
+                                    <td className="px-6 py-4" colSpan={2}>Total ({filteredHoldings.length} Funds)</td>
+                                    <td className="px-6 py-4 text-right">{formatNumber(totals.invested, 0)}</td>
+                                    <td className="px-6 py-4 text-right">{formatNumber(totals.current, 0)}</td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className={`${totals.returns >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {totals.returns >= 0 ? '+' : ''}{formatNumber(totals.returns, 0)}
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-500">
+                                            {totalReturnPercent.toFixed(2)}%
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </Card>
+            </div>
+        )}
+
+        {/* Other tabs remain essentially the same but wrapper classes handled in main return */}
         {activeTab === 'optimize' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
-                
-                {/* Simulator Banner */}
-                <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
+            // ... (Optimization tab code - no changes to logic, just wrapper styling handled by main)
+            // Re-using the same structure as before but ensuring consistent spacing
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                 {/* Simulator Banner */}
+                 <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
+                    {/* ... content same as previous ... */}
                     <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
                     <div className="relative z-10">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -1121,14 +1236,30 @@ export default function PortfolioAnalyzer() {
                                     Visualize your portfolio without the small "clutter" funds.
                                 </p>
                             </div>
-                            <button 
-                                onClick={() => setSimulateCleanup(!simulateCleanup)}
-                                className={`px-8 py-4 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 ${simulateCleanup ? 'bg-rose-500 hover:bg-rose-600 text-white' : 'bg-white text-indigo-900 hover:bg-indigo-50'}`}
-                            >
-                                {simulateCleanup ? <><RefreshCw className="w-5 h-5"/> Reset View</> : <><Trash2 className="w-5 h-5"/> Simulate Cleanup</>}
-                            </button>
+                            <div className="flex flex-col items-center gap-3">
+                                <button 
+                                    onClick={() => setSimulateCleanup(!simulateCleanup)}
+                                    className={`px-8 py-4 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 ${simulateCleanup ? 'bg-rose-500 hover:bg-rose-600 text-white' : 'bg-white text-indigo-900 hover:bg-indigo-50'}`}
+                                >
+                                    {simulateCleanup ? <><RefreshCw className="w-5 h-5"/> Reset View</> : <><Trash2 className="w-5 h-5"/> Simulate Cleanup</>}
+                                </button>
+                                {/* Clutter Threshold Slider */}
+                                <div className="flex items-center gap-3 bg-indigo-800/30 px-4 py-2 rounded-xl">
+                                    <span className="text-xs font-medium text-indigo-200">Threshold:</span>
+                                    <input 
+                                        type="range" 
+                                        min="1000" 
+                                        max="50000" 
+                                        step="1000" 
+                                        value={clutterThreshold} 
+                                        onChange={(e) => setClutterThreshold(Number(e.target.value))}
+                                        className="w-24 h-1 bg-indigo-400/50 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-white w-12 text-right">{formatNumber(clutterThreshold/1000, 0)}k</span>
+                                </div>
+                            </div>
                         </div>
-
+                        {/* Stats grid for simulator */}
                         {simulateCleanup && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-8 border-t border-white/10">
                                 <div className="bg-white/5 rounded-2xl p-5 backdrop-blur-md border border-white/10">
@@ -1149,15 +1280,28 @@ export default function PortfolioAnalyzer() {
                     </div>
                 </div>
 
-                {/* Consolidation Suggestions */}
-                <div className="space-y-6">
-                     <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                            <Target className="w-6 h-6 text-indigo-500"/> Consolidation Opportunities
-                        </h3>
-                     </div>
-                     
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Allocation Health Check */}
+                <Card className="border-l-4 border-l-indigo-500">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl text-indigo-600"><PieChart className="w-6 h-6"/></div>
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Asset Allocation Health</h3>
+                                <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
+                                    <span>Equity: <strong className="text-slate-700 dark:text-slate-300">{analysis.equityRatio.toFixed(1)}%</strong></span>
+                                    <span>Debt/Others: <strong className="text-slate-700 dark:text-slate-300">{(100 - analysis.equityRatio).toFixed(1)}%</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`px-4 py-2 rounded-xl text-sm font-bold ${analysis.equityRatio > 80 ? 'bg-amber-100 text-amber-700' : analysis.equityRatio < 50 ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {analysis.equityRatio > 80 ? 'Aggressive Growth' : analysis.equityRatio < 50 ? 'Conservative' : 'Balanced'}
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Consolidation Section */}
+                {/* ... existing consolidation code ... */}
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {analysis.consolidationPlan.map((plan, idx) => (
                             <Card key={idx} className="border-t-4 border-t-amber-400" noPadding>
                                 <div className="p-6">
@@ -1190,6 +1334,13 @@ export default function PortfolioAnalyzer() {
                                             </div>
                                         ))}
                                     </div>
+                                    
+                                    <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-800 flex gap-2 items-start">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0"/>
+                                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                                            <strong>Tax Alert:</strong> Switching funds involves selling and re-investing, which may trigger Capital Gains Tax.
+                                        </p>
+                                    </div>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-slate-800 px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                     <span className="text-sm text-slate-500">Potential Value to Move</span>
@@ -1198,13 +1349,13 @@ export default function PortfolioAnalyzer() {
                             </Card>
                         ))}
                      </div>
-                </div>
             </div>
         )}
 
-        {/* --- PERFORMANCE TAB --- */}
+        {/* --- PERFORMANCE TAB (Re-using existing structure but ensuring responsiveness) --- */}
         {activeTab === 'performance' && (
              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+                {/* Same performance tab content as previous version */}
                 <div className="p-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-2xl flex items-start gap-4">
                     <div className="bg-indigo-100 text-indigo-600 p-3 rounded-xl"><Gauge className="w-6 h-6"/></div>
                     <div>
@@ -1235,32 +1386,49 @@ export default function PortfolioAnalyzer() {
                         </div>
                     </Card>
 
-                    {/* Breakdown List */}
-                    <div className="lg:col-span-4 space-y-4">
-                        <h3 className="font-bold text-lg text-slate-800 mb-2">Category Alpha</h3>
-                        {analysis.comparisonData.map((item, idx) => (
-                            <div key={idx} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden">
-                                <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.alpha >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <h4 className="font-bold text-slate-800 dark:text-white">{item.category}</h4>
-                                        <div className="text-xs text-slate-400">{item.benchName}</div>
-                                    </div>
-                                    <div className={`text-right ${item.alpha >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                        <div className="text-lg font-bold">{item.alpha > 0 ? '+' : ''}{item.alpha}%</div>
-                                        <div className="text-[10px] font-bold uppercase tracking-wider">Alpha</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-4 text-sm pt-3 border-t border-slate-50 dark:border-slate-700">
-                                    <div><span className="text-slate-400 mr-2">You</span> <span className="font-semibold">{item.myXIRR}%</span></div>
-                                    <div><span className="text-slate-400 mr-2">Index</span> <span className="font-semibold">{item.benchXIRR}%</span></div>
-                                </div>
+                    {/* Breakdown List Sorted By Alpha */}
+                    <div className="lg:col-span-4 flex flex-col h-full">
+                         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full max-h-[480px]">
+                            <div className="p-5 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white z-10 rounded-t-3xl">
+                                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Category Alpha</h3>
+                                <p className="text-xs text-slate-500 mt-1">Performance vs Benchmark</p>
                             </div>
-                        ))}
+                            <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                                {[...analysis.comparisonData]
+                                    .sort((a,b) => b.alpha - a.alpha)
+                                    .map((item, idx) => (
+                                    <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700 relative overflow-hidden group hover:shadow-md transition-all">
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${item.alpha >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+                                        <div className="flex justify-between items-start mb-2 pl-2">
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 dark:text-white text-sm">{item.category}</h4>
+                                                <div className="text-[10px] text-slate-400 font-medium tracking-wide uppercase mt-0.5">{item.benchName}</div>
+                                            </div>
+                                            <div className={`text-right ${item.alpha >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                <div className="text-lg font-bold leading-none">{item.alpha > 0 ? '+' : ''}{item.alpha}%</div>
+                                                <div className="text-[9px] font-bold uppercase tracking-wider mt-1 opacity-80">Alpha</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs pt-2 mt-1 border-t border-slate-200 dark:border-slate-700/50 pl-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                                                <span className="text-slate-500">You:</span> 
+                                                <span className="font-bold text-slate-700 dark:text-slate-300">{item.myXIRR}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                                <span className="text-slate-500">Index:</span> 
+                                                <span className="font-bold text-slate-700 dark:text-slate-300">{item.benchXIRR}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Wealth Projection Section (NEW) */}
+                {/* Wealth Projection Section */}
                 <Card>
                     <div className="flex items-center justify-between mb-6">
                         <div>
@@ -1296,7 +1464,7 @@ export default function PortfolioAnalyzer() {
                     </div>
                 </Card>
 
-                {/* Return Distribution (NEW) */}
+                {/* Return Distribution */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <Card>
                         <h3 className="font-bold text-lg mb-6 text-slate-800 dark:text-white">Fund Performance Distribution</h3>
@@ -1336,102 +1504,10 @@ export default function PortfolioAnalyzer() {
             </div>
         )}
 
-        {/* --- HOLDINGS TAB --- */}
-        {activeTab === 'holdings' && (
-             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <Card noPadding>
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white">All Holdings</h3>
-                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                            {/* Category Filter */}
-                            <div className="relative">
-                                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                <select 
-                                    value={categoryFilter}
-                                    onChange={(e) => setCategoryFilter(e.target.value)}
-                                    className="w-full sm:w-40 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all appearance-none cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
-                                >
-                                    {analysis.categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                </select>
-                            </div>
-
-                            <div className="relative w-full sm:w-64 group">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search funds..." 
-                                    value={searchTerm} 
-                                    onChange={(e) => setSearchTerm(e.target.value)} 
-                                    className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
-                                />
-                            </div>
-                            <Button variant="secondary" onClick={() => downloadCSV(analysis.processedData, 'full_holdings.csv')} icon={Download}>Export</Button>
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 font-semibold border-b border-slate-100 dark:border-slate-700">
-                                <tr>
-                                    <SortableHeader label="Scheme Name" sortKey="Scheme Name" />
-                                    <SortableHeader label="Units" sortKey="Units" align="right" />
-                                    <SortableHeader label="Invested" sortKey="Invested Value" align="right" />
-                                    <SortableHeader label="Current Value" sortKey="Current Value" align="right" />
-                                    <SortableHeader label="Net Return" sortKey="Returns" align="right" />
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {sortedHoldings.map((item, idx) => (
-                                    <tr 
-                                        key={idx} 
-                                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
-                                        onClick={() => setSelectedFundName(item['Scheme Name'])}
-                                    >
-                                        <td className="px-6 py-4">
-                                            <div className="font-medium text-slate-900 dark:text-white truncate max-w-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" title={item['Scheme Name']}>
-                                                {item['Scheme Name']}
-                                            </div>
-                                            <div className="flex gap-2 mt-1">
-                                                <Badge type="neutral" className="text-[10px] py-0 px-2">{item['Category']}</Badge>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 text-right text-slate-500 font-mono">{formatNumber(item['Units'], 3)}</td>
-                                        <td className="px-4 py-4 text-right text-slate-600 font-medium">{formatNumber(item['Invested Value'], 0)}</td>
-                                        <td className="px-4 py-4 text-right font-bold text-slate-900 dark:text-white">{formatNumber(item['Current Value'], 0)}</td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className={`font-bold ${item['Returns'] >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {item['Returns'] >= 0 ? '+' : ''}{formatNumber(item['Returns'], 0)}
-                                            </div>
-                                            <div className={`text-xs mt-0.5 font-medium ${item._absReturn >= 0 ? 'text-emerald-600/70' : 'text-rose-600/70'} flex justify-end items-center gap-1`}>
-                                                {item._absReturn.toFixed(2)}% <Info className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                            <tfoot className="bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
-                                <tr>
-                                    <td className="px-6 py-4" colSpan={2}>Total ({filteredHoldings.length} Funds)</td>
-                                    <td className="px-4 py-4 text-right">{formatNumber(totals.invested, 0)}</td>
-                                    <td className="px-4 py-4 text-right">{formatNumber(totals.current, 0)}</td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className={`${totals.returns >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                            {totals.returns >= 0 ? '+' : ''}{formatNumber(totals.returns, 0)}
-                                        </div>
-                                        <div className={`text-xs font-medium ${totalReturnPercent >= 0 ? 'text-emerald-600/70' : 'text-rose-600/70'}`}>
-                                            {totalReturnPercent.toFixed(2)}%
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </Card>
-            </div>
-        )}
       </main>
       
       {/* Footer added below main content */}
-      <footer className="max-w-4xl mx-auto px-4 text-center text-slate-400 text-xs pb-8 leading-relaxed">
+      <footer className="max-w-4xl mx-auto px-4 text-center text-slate-400 text-xs pb-24 md:pb-8 leading-relaxed">
         Disclaimer: I am not registered with the Securities and Exchange Board of India (SEBI) as an Investment Advisor nor registered with the Association of Mutual Funds in India (AMFI) as a Mutual Fund Distributor. Any information shared is purely for educational purposes and does not constitute investment advice, recommendation, or solicitation. Mutual fund investments are subject to market risks. Please read all scheme related documents carefully before investing
       </footer>
     </div>
