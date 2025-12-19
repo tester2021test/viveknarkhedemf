@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Upload, AlertTriangle, TrendingUp, TrendingDown, 
   PieChart, Activity, Search, Filter, X, FileSpreadsheet, 
-  RefreshCw, ArrowUp, Sun, Moon,
+  RefreshCw, ArrowUp, 
   Download, Briefcase, Shield, Gauge, BarChart3,
   Wand2, Trash2, ArrowRightLeft, Target, Layers, Wallet,
   Trophy, AlertCircle, Info, ExternalLink, Calendar,
@@ -21,7 +21,7 @@ import {
  * - "Portfolio Detox" Simulator
  * - Consolidation Engine
  * - Smart Benchmarking
- * - AMC Analysis & Dark Mode
+ * - AMC Analysis
  * - Live Fund Details via MFAPI.in
  * - Wealth Projection & Distribution Analysis
  * - Holdings Summary Footer & Sorting
@@ -454,13 +454,13 @@ export default function PortfolioAnalyzer() {
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [excelReady, setExcelReady] = useState(false);
   const [simulateCleanup, setSimulateCleanup] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(false); // Kept state for compatibility, but UI removed
   const [selectedFundName, setSelectedFundName] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: 'Current Value', direction: 'desc' });
 
   const scriptLoaded = useRef(false);
 
-  // Dark Mode Toggle Logic
+  // Dark Mode Toggle Logic (Preserved but no UI toggle)
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -782,11 +782,7 @@ export default function PortfolioAnalyzer() {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 font-sans transition-colors duration-300">
         <div className="max-w-2xl w-full">
-            <div className="absolute top-6 right-6">
-                <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-all">
-                    {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
-                </button>
-            </div>
+            {/* Dark mode toggle removed from landing page */}
 
           <div className="text-center mb-12">
             <div className="bg-indigo-600 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-indigo-600/30 rotate-3 transition-transform hover:rotate-6">
@@ -902,11 +898,8 @@ export default function PortfolioAnalyzer() {
               <span className="font-bold text-xl text-slate-800 dark:text-white">Vivek Narkhede's <span className="text-indigo-600">Portfolio</span></span>
             </div>
             
-            {/* Mobile Actions: Dark Mode & Close */}
+            {/* Mobile Actions: Close (Dark Mode Removed) */}
             <div className="flex md:hidden items-center gap-2">
-                <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors bg-slate-50 dark:bg-slate-800/50">
-                    {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
-                </button>
                 <button onClick={() => setData(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors bg-slate-50 dark:bg-slate-800/50"><X className="w-5 h-5" /></button>
             </div>
           </div>
@@ -928,9 +921,6 @@ export default function PortfolioAnalyzer() {
 
           {/* Desktop Actions (Hidden on Mobile) */}
           <div className="hidden md:flex items-center gap-2">
-            <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors">
-                {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
-            </button>
              <button onClick={() => setData(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors" title="Close File"><X className="w-5 h-5" /></button>
           </div>
         </div>
